@@ -1,0 +1,111 @@
+# Web Apps
+
+## Creating Web Apps
+
+Create a new web application on any provisioned server.
+
+**Steps:**
+1. Navigate to "Web Apps" → "Create Web App"
+2. Select a server to deploy to
+3. Enter your domain name (e.g., `example.com`)
+4. Choose the PHP version
+5. Select project type (Laravel, WordPress, Static, or Generic)
+6. Connect your Git repository
+
+**Project Types:**
+- **Laravel**: Pre-configured for Laravel with Composer, artisan commands
+- **WordPress**: Optimized for WordPress with proper permissions
+- **Static**: Simple static file hosting
+- **Generic**: Custom PHP application
+
+**Web Root:**
+The default web root is `/public` for Laravel. Adjust for other frameworks:
+- WordPress: `/` (root)
+- Symfony: `/public`
+- CodeIgniter: `/public`
+
+---
+
+## Deployments
+
+Deployments pull code from Git and run your build process.
+
+**Deployment Process:**
+1. Creates new release directory
+2. Clones repository at specified branch
+3. Links shared files (storage, .env)
+4. Runs deploy script
+5. Updates symlink to new release
+6. Removes old releases (keeps last 5)
+
+**Zero-Downtime:**
+The symlink switch is atomic, meaning your site experiences no downtime during deployment.
+
+**Triggering Deployments:**
+- **Manual**: Click "Deploy" button in SiteKit
+- **Webhook**: Use the deploy webhook URL with GitHub/GitLab
+- **API**: POST to the deployment endpoint
+
+**Deployment Status:**
+- **Pending**: Queued for deployment
+- **Running**: Currently deploying
+- **Success**: Completed successfully
+- **Failed**: An error occurred (check logs)
+
+---
+
+## Deploy Scripts
+
+Deploy scripts run after code is pulled from Git. They typically install dependencies and build assets.
+
+**Default Laravel Script:**
+```bash
+# Install PHP dependencies
+composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
+
+# Install Node dependencies
+npm ci
+npm run build
+
+# Laravel tasks
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+**Available Variables:**
+- `$RELEASE_PATH` - Current release directory
+- `$SHARED_PATH` - Shared files directory
+- `$PHP_VERSION` - Configured PHP version
+
+**Tips:**
+- Use `--no-dev` for production dependencies
+- Cache configs for better performance
+- Run migrations manually or add `php artisan migrate --force`
+
+---
+
+## Environment Variables
+
+Environment variables are stored securely and written to your `.env` file during deployment.
+
+**Setting Variables:**
+1. Go to Web App → Environment tab
+2. Add key-value pairs
+3. Deploy to apply changes
+
+**Format:**
+```
+APP_ENV=production
+APP_DEBUG=false
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+```
+
+**Security Notes:**
+- Variables are encrypted at rest
+- Never commit `.env` files to Git
+- Use unique values for `APP_KEY`
+
+**Laravel Tip:**
+Generate a new app key: `php artisan key:generate --show`
