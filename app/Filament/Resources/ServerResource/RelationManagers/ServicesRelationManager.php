@@ -51,10 +51,7 @@ class ServicesRelationManager extends RelationManager
                     ]),
             ])
             ->headerActions([
-                Tables\Actions\Action::make('create')
-                    ->label('Install Service')
-                    ->icon('heroicon-o-plus')
-                    ->url(fn () => ServiceResource::getUrl('create')),
+                // Services are synced from the agent during provisioning
             ])
             ->actions([
                 Tables\Actions\Action::make('restart')

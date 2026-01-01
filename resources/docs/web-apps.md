@@ -26,6 +26,41 @@ The default web root is `/public` for Laravel. Adjust for other frameworks:
 
 ---
 
+## Domain Aliases
+
+Add additional domains or subdomains that should serve the same web application.
+
+**Common Use Cases:**
+- Add `www.example.com` alongside `example.com`
+- Add staging subdomain `staging.example.com`
+- Add multiple domains pointing to the same app
+
+**Adding Aliases:**
+1. Go to Web Apps → Select your app → Edit
+2. Find the "Aliases" field
+3. Type the additional domain and press Enter
+4. Save the web app
+
+**What Happens:**
+- Nginx configuration is regenerated with all domains in `server_name`
+- SSL certificates (if enabled) will include alias domains
+- DNS must point all domains to your server IP
+
+**Example:**
+Primary domain: `example.com`
+Aliases: `www.example.com`, `app.example.com`
+
+Results in nginx config:
+```nginx
+server_name example.com www.example.com app.example.com;
+```
+
+**Important:**
+- Ensure DNS A records exist for all alias domains
+- SSL certificates must cover all domains (use "Reissue SSL" after adding aliases)
+
+---
+
 ## Deployments
 
 Deployments pull code from Git and run your build process.

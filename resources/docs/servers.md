@@ -64,7 +64,7 @@ SiteKit uses a two-phase provisioning approach for reliability:
 **Installed Services:**
 After provisioning, your server includes:
 - Nginx (web server)
-- PHP 8.1, 8.2, 8.3 FPM (PHP processor)
+- PHP 8.1, 8.2, 8.3, 8.4, 8.5 FPM (PHP processor)
 - MariaDB (database)
 - Redis (cache)
 - Supervisor (process manager)
@@ -75,10 +75,69 @@ After provisioning, your server includes:
 - **Restart**: Stop and start the service
 - **Reload**: Reload configuration without downtime
 
+**Accessing Service Controls:**
+1. Go to Servers → Select your server
+2. Click on the "Services" tab
+3. Click on a service to view details and actions
+
 **Viewing Status:**
 Services are listed on the server detail page with real-time status indicators.
 
-**Credentials:**
+---
+
+## When to Restart Services
+
+**Restart PHP-FPM when:**
+- Files are updated but changes don't appear (OPcache is caching old code)
+- After uploading files via FTP/SFTP
+- After changing PHP configuration (php.ini)
+- After installing new PHP extensions
+
+**How to restart PHP-FPM:**
+1. Go to Services → PHP 8.x (your version)
+2. Click the "Restart" button
+3. Wait for confirmation
+
+**Why this works:**
+PHP-FPM uses OPcache to cache compiled PHP code for performance. Restarting PHP-FPM clears this cache, forcing PHP to read the updated files from disk.
+
+**Restart Nginx when:**
+- After manually editing nginx configuration files
+- If web apps show 502 Bad Gateway errors
+- After SSL certificate changes (though this is usually automatic)
+
+**Restart MariaDB when:**
+- After changing database configuration
+- If database connections are failing
+- To clear query cache
+
+---
+
+## PHP Configuration
+
+**Editing PHP Configuration:**
+1. Go to Services → PHP 8.x → View
+2. Click "Edit Configuration"
+3. Modify settings (memory_limit, upload_max_filesize, etc.)
+4. Save and restart PHP-FPM
+
+**Installing PHP Extensions:**
+1. Go to Services → PHP 8.x → View
+2. Click "Install Extension"
+3. Select the extension to install
+4. PHP-FPM will restart automatically
+
+**Common Extensions:**
+- `gd` - Image processing
+- `imagick` - Advanced image manipulation
+- `redis` - Redis PHP client
+- `memcached` - Memcached client
+- `intl` - Internationalization
+
+---
+
+## Service Credentials
+
 Database credentials are stored securely:
 - MariaDB root: `/opt/sitekit/config/.mysql_root`
 - MariaDB sitekit user: `/opt/sitekit/config/.mysql_sitekit`
