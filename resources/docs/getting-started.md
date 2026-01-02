@@ -16,6 +16,41 @@ SiteKit is a modern server management platform that makes it easy to deploy and 
 
 ---
 
+## Important: Setup Requirements
+
+### Public URL Required
+
+SiteKit requires a **publicly accessible URL** for:
+- **OAuth callbacks** - GitHub/GitLab/Bitbucket redirect back to your app
+- **Webhooks** - Git providers send push events to trigger deployments
+- **Server Agent** - Managed servers communicate back to report status
+
+### Local Development
+
+For local development, use a tunneling service like [ngrok](https://ngrok.com/):
+
+```bash
+ngrok http 8000
+```
+
+Update your `.env` with the ngrok URL:
+```
+APP_URL=https://your-subdomain.ngrok-free.app
+```
+
+Also update your OAuth app callback URLs in GitHub/GitLab/Bitbucket settings.
+
+### Self-Hosted Production
+
+SiteKit is a **control plane** that manages OTHER servers:
+
+1. **First server** - Manually set up with PHP, MySQL, Nginx, then install SiteKit
+2. **Managed servers** - SiteKit provisions and controls these automatically
+
+This is the standard pattern for tools like Forge, Coolify, and CapRover.
+
+---
+
 ## Quick Start Guide
 
 ### Step 1: Add a Server

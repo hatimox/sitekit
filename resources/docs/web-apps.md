@@ -61,6 +61,30 @@ server_name example.com www.example.com app.example.com;
 
 ---
 
+## Clear Cache (FTP/SFTP Uploads)
+
+When you upload files via FTP or SFTP (instead of Git deployment), PHP may serve cached versions of your old files due to OPcache.
+
+**Using Clear Cache:**
+1. Upload your files via FTP/SFTP client (FileZilla, Cyberduck, etc.)
+2. Go to Web Apps → Select your app
+3. Click the **"Clear Cache"** button
+4. Confirm to clear the PHP cache
+
+**What it does:**
+- Restarts PHP-FPM for your app's PHP version
+- Clears OPcache so PHP reads the updated files from disk
+- Your changes appear immediately
+
+**When to use:**
+- After uploading files via FTP/SFTP
+- After manually editing files on the server via SSH
+- When file changes don't appear on your site
+
+**Note:** Git deployments automatically handle cache clearing, so you don't need to click this button after using the Deploy feature.
+
+---
+
 ## Deployments
 
 Deployments pull code from Git and run your build process.

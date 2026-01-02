@@ -4,21 +4,28 @@ namespace App\Filament\Resources\WebAppResource\Pages;
 
 use App\Filament\Resources\WebAppResource;
 use App\Models\AgentJob;
+use App\Models\SourceProvider;
 use App\Models\WebApp;
 use App\Services\ConfigGenerator\NginxConfigGenerator;
 use App\Services\ConfigGenerator\PhpFpmConfigGenerator;
+use App\Services\GitProviders\GitProviderFactory;
 use Filament\Actions;
+use Filament\Facades\Filament;
 use Filament\Forms;
+use Filament\Infolists\Components\Actions as InfolistActions;
 use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Illuminate\Support\HtmlString;
 use Livewire\Attributes\On;
 
 class ViewWebApp extends ViewRecord
 {
     protected static string $resource = WebAppResource::class;
+
+    protected static string $view = 'filament.resources.web-app-resource.pages.view-web-app';
 
     public function getPollingInterval(): ?string
     {
@@ -89,6 +96,193 @@ class ViewWebApp extends ViewRecord
                 ->visible(fn () => config('ai.enabled')),
 
             Actions\EditAction::make(),
+
+            // Connect Repository - for setting up git deployment
+            Actions\Action::make('connect_repository')
+                ->label('Connect Repository')
+                ->icon('heroicon-o-link')
+                ->color('primary')
+                ->visible(fn (WebApp $record) => $record->isActive() && !$record->repository)
+                ->modalHeading('Connect Git Repository')
+                ->modalDescription(new HtmlString(
+                    '<div class="text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">' .
+                    '<strong>⚠️ Important:</strong> Deploying from Git will replace files in your app directory. ' .
+                    'If you uploaded files via FTP/SFTP, make sure they are committed to your repository first, ' .
+                    'or they will be overwritten. The <code>shared/</code> folder (storage, .env) is preserved.' .
+                    '</div>'
+                ))
+                ->form([
+                    Forms\Components\Select::make('source_provider_id')
+                        ->label('Source Provider')
+                        ->options(function () {
+                            return SourceProvider::where('team_id', Filament::getTenant()?->id)
+                                ->get()
+                                ->mapWithKeys(fn ($provider) => [
+                                    $provider->id => ucfirst($provider->provider) . ' - ' . $provider->provider_username,
+                                ]);
+                        })
+                        ->required()
+                        ->live()
+                        ->placeholder('Select a connected provider')
+                        ->helperText(function () {
+                            $count = SourceProvider::where('team_id', Filament::getTenant()?->id)->count();
+                            if ($count === 0) {
+                                return new HtmlString(
+                                    'No providers connected. <a href="' . route('filament.app.pages.source-providers', ['tenant' => Filament::getTenant()]) . '" class="text-primary-600 hover:underline">Connect GitHub, GitLab, or Bitbucket first →</a>'
+                                );
+                            }
+                            return null;
+                        }),
+
+                    Forms\Components\Select::make('repository')
+                        ->label('Repository')
+                        ->options(function (Forms\Get $get) {
+                            $providerId = $get('source_provider_id');
+                            if (!$providerId) {
+                                return [];
+                            }
+
+                            try {
+                                $provider = SourceProvider::find($providerId);
+                                if (!$provider) {
+                                    return [];
+                                }
+
+                                $gitService = GitProviderFactory::make($provider);
+                                $repos = $gitService->repositories();
+
+                                return $repos->mapWithKeys(fn ($repo) => [
+                                    $repo['full_name'] => $repo['full_name'] . ($repo['private'] ? ' 🔒' : ''),
+                                ])->toArray();
+                            } catch (\Exception $e) {
+                                return [];
+                            }
+                        })
+                        ->required()
+                        ->searchable()
+                        ->live()
+                        ->visible(fn (Forms\Get $get) => filled($get('source_provider_id')))
+                        ->placeholder('Select a repository')
+                        ->helperText('Select the repository to deploy from'),
+
+                    Forms\Components\Select::make('branch')
+                        ->label('Branch')
+                        ->options(function (Forms\Get $get) {
+                            $providerId = $get('source_provider_id');
+                            $repository = $get('repository');
+
+                            if (!$providerId || !$repository) {
+                                return [];
+                            }
+
+                            try {
+                                $provider = SourceProvider::find($providerId);
+                                if (!$provider) {
+                                    return [];
+                                }
+
+                                $gitService = GitProviderFactory::make($provider);
+                                $branches = $gitService->branches($repository);
+
+                                return $branches->mapWithKeys(fn ($branch) => [$branch => $branch])->toArray();
+                            } catch (\Exception $e) {
+                                return ['main' => 'main', 'master' => 'master'];
+                            }
+                        })
+                        ->required()
+                        ->default('main')
+                        ->visible(fn (Forms\Get $get) => filled($get('repository')))
+                        ->helperText('Branch to deploy from'),
+
+                    Forms\Components\Textarea::make('deploy_script')
+                        ->label('Deploy Script')
+                        ->placeholder("# Example Laravel deploy script\ncomposer install --no-interaction --prefer-dist --optimize-autoloader --no-dev\nnpm ci && npm run build\nphp artisan config:cache\nphp artisan route:cache\nphp artisan view:cache\nphp artisan migrate --force")
+                        ->rows(8)
+                        ->visible(fn (Forms\Get $get) => filled($get('repository')))
+                        ->helperText('Commands to run after pulling code (composer install, npm build, etc.)'),
+
+                    Forms\Components\Toggle::make('auto_deploy')
+                        ->label('Auto Deploy')
+                        ->helperText('Automatically deploy when you push to the selected branch')
+                        ->visible(fn (Forms\Get $get) => filled($get('repository')))
+                        ->default(false),
+                ])
+                ->action(function (WebApp $record, array $data) {
+                    $record->update([
+                        'source_provider_id' => $data['source_provider_id'],
+                        'repository' => $data['repository'],
+                        'branch' => $data['branch'],
+                        'deploy_script' => $data['deploy_script'] ?? null,
+                        'auto_deploy' => $data['auto_deploy'] ?? false,
+                    ]);
+
+                    // If auto_deploy is enabled, set up the webhook
+                    if ($data['auto_deploy'] ?? false) {
+                        try {
+                            $provider = SourceProvider::find($data['source_provider_id']);
+                            $gitService = GitProviderFactory::make($provider);
+                            $webhookUrl = route('webhooks.deploy', $record);
+                            $gitService->createWebhook($data['repository'], $webhookUrl, $record->webhook_secret);
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Webhook Setup Failed')
+                                ->body('Repository connected, but webhook could not be created: ' . $e->getMessage())
+                                ->warning()
+                                ->send();
+                        }
+                    }
+
+                    Notification::make()
+                        ->title('Repository Connected')
+                        ->body("Connected to {$data['repository']}. Click 'Deploy' to deploy your code.")
+                        ->success()
+                        ->send();
+                }),
+
+            // Disconnect Repository
+            Actions\Action::make('disconnect_repository')
+                ->label('Disconnect Repository')
+                ->icon('heroicon-o-link-slash')
+                ->color('danger')
+                ->visible(fn (WebApp $record) => $record->isActive() && $record->repository)
+                ->requiresConfirmation()
+                ->modalHeading('Disconnect Repository')
+                ->modalDescription('This will remove the git configuration. Your deployed files will remain on the server, but you won\'t be able to deploy from git until you reconnect.')
+                ->action(function (WebApp $record) {
+                    $record->update([
+                        'source_provider_id' => null,
+                        'repository' => null,
+                        'branch' => 'main',
+                        'deploy_script' => null,
+                        'auto_deploy' => false,
+                    ]);
+
+                    Notification::make()
+                        ->title('Repository Disconnected')
+                        ->body('Git deployment has been disabled. You can still upload files via SFTP.')
+                        ->success()
+                        ->send();
+                }),
+
+            // Clear Cache - standalone button for FTP users
+            Actions\Action::make('clear_cache')
+                ->label('Clear Cache')
+                ->icon('heroicon-o-arrow-path')
+                ->color('success')
+                ->visible(fn (WebApp $record) => $record->isActive())
+                ->requiresConfirmation()
+                ->modalHeading('Clear Cache')
+                ->modalDescription('This will clear the PHP cache so any files you uploaded via FTP/SFTP are served immediately.')
+                ->modalSubmitActionLabel('Clear Cache')
+                ->action(function (WebApp $record) {
+                    $record->restartPhpFpm();
+
+                    Notification::make()
+                        ->title('Cache Cleared')
+                        ->body("PHP {$record->php_version} cache cleared. Your updated files are now live.")
+                        ->success()
+                        ->send();
+                }),
 
             Actions\ActionGroup::make([
                 // SSL Actions
@@ -232,7 +426,7 @@ class ViewWebApp extends ViewRecord
                 ->label('Deploy')
                 ->icon('heroicon-o-rocket-launch')
                 ->color('primary')
-                ->visible(fn (WebApp $record) => $record->isActive() && $record->repository)
+                ->visible(fn (WebApp $record) => $record->isActive() && filled($record->repository))
                 ->form([
                     Forms\Components\Select::make('branch')
                         ->label('Branch')
@@ -509,27 +703,67 @@ class ViewWebApp extends ViewRecord
                     ->collapsed(false),
 
                 Section::make('Git Repository')
+                    ->icon('heroicon-o-code-bracket')
+                    ->description(fn (WebApp $record) => $record->repository
+                        ? 'Deploy code from your git repository'
+                        : 'Connect a repository to enable git deployments')
                     ->schema([
+                        // Show when NO repository is connected
+                        TextEntry::make('no_repo_message')
+                            ->label('')
+                            ->getStateUsing(fn () => 'No repository connected. Click "Connect Repository" above to set up git deployment, or continue using SFTP to upload files.')
+                            ->columnSpanFull()
+                            ->visible(fn (WebApp $record) => !$record->repository),
+
+                        // Show when repository IS connected
+                        TextEntry::make('sourceProvider.provider')
+                            ->label('Provider')
+                            ->badge()
+                            ->formatStateUsing(fn ($state) => ucfirst($state))
+                            ->color(fn ($state) => match ($state) {
+                                'github' => 'gray',
+                                'gitlab' => 'warning',
+                                'bitbucket' => 'info',
+                                default => 'gray',
+                            })
+                            ->visible(fn (WebApp $record) => $record->repository),
                         TextEntry::make('repository')
                             ->label('Repository')
-                            ->placeholder('Not configured')
-                            ->copyable(),
+                            ->copyable()
+                            ->url(fn (WebApp $record) => match ($record->sourceProvider?->provider) {
+                                'github' => "https://github.com/{$record->repository}",
+                                'gitlab' => "https://gitlab.com/{$record->repository}",
+                                'bitbucket' => "https://bitbucket.org/{$record->repository}",
+                                default => null,
+                            })
+                            ->openUrlInNewTab()
+                            ->visible(fn (WebApp $record) => $record->repository),
                         TextEntry::make('branch')
                             ->label('Branch')
-                            ->placeholder('main'),
+                            ->badge()
+                            ->color('info')
+                            ->visible(fn (WebApp $record) => $record->repository),
                         TextEntry::make('auto_deploy')
                             ->label('Auto Deploy')
                             ->badge()
                             ->formatStateUsing(fn ($state) => $state ? 'Enabled' : 'Disabled')
-                            ->color(fn ($state) => $state ? 'success' : 'gray'),
+                            ->color(fn ($state) => $state ? 'success' : 'gray')
+                            ->visible(fn (WebApp $record) => $record->repository),
                         TextEntry::make('webhook_url')
                             ->label('Webhook URL')
                             ->getStateUsing(fn (WebApp $record) => route('webhooks.deploy', $record))
                             ->copyable()
-                            ->visible(fn (WebApp $record) => $record->auto_deploy),
+                            ->columnSpanFull()
+                            ->helperText('Add this URL to your repository\'s webhooks to trigger auto-deploy on push')
+                            ->visible(fn (WebApp $record) => $record->repository && $record->auto_deploy),
+                        TextEntry::make('deploy_script')
+                            ->label('Deploy Script')
+                            ->fontFamily('mono')
+                            ->columnSpanFull()
+                            ->placeholder('No deploy script configured')
+                            ->visible(fn (WebApp $record) => $record->repository && $record->deploy_script),
                     ])
-                    ->columns(2)
-                    ->visible(fn (WebApp $record) => $record->repository),
+                    ->columns(2),
 
                 Section::make('Deploy Key')
                     ->schema([

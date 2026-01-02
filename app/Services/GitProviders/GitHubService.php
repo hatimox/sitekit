@@ -24,26 +24,53 @@ class GitHubService implements GitProviderInterface
 
     public function repositories(int $page = 1): Collection
     {
+        $allRepos = collect();
+
+        // Fetch user's own repos (owned + collaborator)
         $response = $this->client()->get('/user/repos', [
             'per_page' => 100,
             'page' => $page,
             'sort' => 'updated',
-            'affiliation' => 'owner,collaborator,organization_member',
+            'type' => 'all',
         ]);
 
-        if (!$response->successful()) {
-            throw new RuntimeException('Failed to fetch repositories: ' . $response->body());
+        if ($response->successful()) {
+            $allRepos = $allRepos->concat($response->json());
         }
 
-        return collect($response->json())->map(fn ($repo) => [
-            'id' => $repo['id'],
-            'full_name' => $repo['full_name'],
-            'name' => $repo['name'],
-            'private' => $repo['private'],
-            'default_branch' => $repo['default_branch'],
-            'clone_url' => $repo['clone_url'],
-            'ssh_url' => $repo['ssh_url'],
+        // Also fetch repos from organizations the user belongs to
+        $orgsResponse = $this->client()->get('/user/orgs', [
+            'per_page' => 100,
         ]);
+
+        if ($orgsResponse->successful()) {
+            foreach ($orgsResponse->json() as $org) {
+                $orgReposResponse = $this->client()->get("/orgs/{$org['login']}/repos", [
+                    'per_page' => 100,
+                    'sort' => 'updated',
+                    'type' => 'all',
+                ]);
+
+                if ($orgReposResponse->successful()) {
+                    $allRepos = $allRepos->concat($orgReposResponse->json());
+                }
+            }
+        }
+
+        // Remove duplicates and map to our format
+        return $allRepos
+            ->unique('id')
+            ->sortByDesc('updated_at')
+            ->values()
+            ->map(fn ($repo) => [
+                'id' => $repo['id'],
+                'full_name' => $repo['full_name'],
+                'name' => $repo['name'],
+                'private' => $repo['private'],
+                'default_branch' => $repo['default_branch'],
+                'clone_url' => $repo['clone_url'],
+                'ssh_url' => $repo['ssh_url'],
+            ]);
     }
 
     public function branches(string $repo): Collection

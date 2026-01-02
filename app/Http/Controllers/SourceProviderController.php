@@ -10,7 +10,7 @@ use Laravel\Socialite\Facades\Socialite;
 class SourceProviderController extends Controller
 {
     protected array $scopes = [
-        'github' => ['repo', 'admin:repo_hook'],
+        'github' => ['repo', 'admin:repo_hook', 'read:org'],
         'gitlab' => ['api', 'read_repository'],
         'bitbucket' => ['repository', 'webhook'],
     ];
@@ -30,15 +30,15 @@ class SourceProviderController extends Controller
     {
         $this->validateProvider($provider);
 
+        $team = auth()->user()->currentTeam;
+
         try {
             $user = Socialite::driver($provider)->user();
         } catch (\Exception $e) {
             return redirect()
-                ->route('filament.app.pages.source-providers')
+                ->route('filament.app.pages.source-providers', ['tenant' => $team])
                 ->with('error', 'Failed to connect: ' . $e->getMessage());
         }
-
-        $team = auth()->user()->currentTeam;
 
         SourceProvider::updateOrCreate(
             [
@@ -58,7 +58,7 @@ class SourceProviderController extends Controller
         );
 
         return redirect()
-            ->route('filament.app.pages.source-providers')
+            ->route('filament.app.pages.source-providers', ['tenant' => $team])
             ->with('success', "Connected to {$provider} successfully!");
     }
 

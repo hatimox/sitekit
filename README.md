@@ -118,6 +118,59 @@ php artisan queue:work
 npm run dev
 ```
 
+## Important: Public URL Requirement
+
+SiteKit requires a **publicly accessible URL** for several features to work:
+
+| Feature | Why it needs public URL |
+|---------|------------------------|
+| OAuth (GitHub/GitLab/Bitbucket) | Provider redirects back to your app |
+| Webhooks | Git providers send push events to your app |
+| Server Agent | Managed servers call back to report status |
+
+### Local Development with ngrok
+
+For local development, use [ngrok](https://ngrok.com/) or similar tunneling service:
+
+```bash
+# Install ngrok (macOS)
+brew install ngrok
+
+# Start tunnel to your local app
+ngrok http 8000
+```
+
+Then update your `.env`:
+
+```env
+APP_URL=https://your-subdomain.ngrok-free.app
+
+# OAuth callback URLs will use this automatically
+GITHUB_REDIRECT_URI=${APP_URL}/oauth/github/callback
+```
+
+**Also update your OAuth app settings** in GitHub/GitLab/Bitbucket to use the ngrok URL for the callback.
+
+> **Note:** With ngrok free tier, the URL changes each restart. Consider ngrok paid or [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/) for a stable URL.
+
+### Alternative: Laravel Herd/Valet with Expose
+
+If using Laravel Herd or Valet, you can use [Expose](https://expose.dev/) or share via Herd's built-in sharing.
+
+## Architecture Note
+
+SiteKit is a **control plane** that manages OTHER servers. This means:
+
+1. **SiteKit itself** runs on your development machine or a production server
+2. **Managed servers** are the VPS/cloud servers that SiteKit provisions and controls
+
+For self-hosted production:
+- You need to manually set up the first server where SiteKit runs
+- Install PHP, MySQL, Nginx, etc. manually (or use another tool)
+- Then SiteKit can manage your other servers
+
+This is the standard pattern for server management tools (Forge, Coolify, CapRover all work this way).
+
 ## Production Deployment
 
 ### Queue Worker
@@ -294,8 +347,8 @@ SiteKit is source-available software licensed under the AvanSaber License. See t
 
 **Key points:**
 - Free for personal use and small businesses
-- Limited to 20 servers and 5 web apps per server
-- Commercial license required for larger deployments or SaaS usage
+- Limited to 20 servers
+- Commercial license required for larger deployments or SaaS usage (revenue > $100K/year)
 - Contact licensing@avansaber.com for commercial licensing
 
 ## Contributing

@@ -13,7 +13,11 @@
                         <p class="text-sm text-gray-500 dark:text-gray-400">Connect your GitHub account</p>
                     </div>
                 </div>
-                <a href="{{ $this->getConnectUrl('github') }}" class="inline-flex items-center px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium rounded-lg hover:bg-gray-700 dark:hover:bg-gray-200 transition">
+                <a
+                    href="{{ $this->getConnectUrl('github') }}"
+                    x-on:click.prevent="window.location.href = '{{ $this->getConnectUrl('github') }}'"
+                    class="inline-flex items-center px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium rounded-lg hover:bg-gray-700 dark:hover:bg-gray-200 transition"
+                >
                     Connect
                 </a>
             </div>
@@ -32,7 +36,11 @@
                         <p class="text-sm text-gray-500 dark:text-gray-400">Connect your GitLab account</p>
                     </div>
                 </div>
-                <a href="{{ $this->getConnectUrl('gitlab') }}" class="inline-flex items-center px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-500 transition">
+                <a
+                    href="{{ $this->getConnectUrl('gitlab') }}"
+                    x-on:click.prevent="window.location.href = '{{ $this->getConnectUrl('gitlab') }}'"
+                    class="inline-flex items-center px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-500 transition"
+                >
                     Connect
                 </a>
             </div>
@@ -51,7 +59,11 @@
                         <p class="text-sm text-gray-500 dark:text-gray-400">Connect your Bitbucket account</p>
                     </div>
                 </div>
-                <a href="{{ $this->getConnectUrl('bitbucket') }}" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 transition">
+                <a
+                    href="{{ $this->getConnectUrl('bitbucket') }}"
+                    x-on:click.prevent="window.location.href = '{{ $this->getConnectUrl('bitbucket') }}'"
+                    class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 transition"
+                >
                     Connect
                 </a>
             </div>
