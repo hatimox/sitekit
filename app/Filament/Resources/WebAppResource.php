@@ -6,9 +6,11 @@ use App\Filament\Concerns\RequiresServerForNavigation;
 use App\Filament\Resources\WebAppResource\Pages;
 use App\Filament\Resources\WebAppResource\RelationManagers;
 use App\Models\WebApp;
+use App\Services\ConfigGenerator\NodeNginxConfigGenerator;
 use Filament\Facades\Filament;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Infolists;
 use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
@@ -75,12 +77,25 @@ class WebAppResource extends Resource
                             ->searchable()
                             ->preload()
                             ->helperText('Only active servers are shown'),
+                        Forms\Components\Select::make('app_type')
+                            ->label('Application Type')
+                            ->options([
+                                WebApp::APP_TYPE_PHP => 'PHP (Laravel, WordPress, etc.)',
+                                WebApp::APP_TYPE_NODEJS => 'Node.js (Next.js, NestJS, etc.)',
+                                WebApp::APP_TYPE_STATIC => 'Static (HTML, SPA, etc.)',
+                            ])
+                            ->default(WebApp::APP_TYPE_PHP)
+                            ->required()
+                            ->live()
+                            ->helperText('Choose the runtime for your application'),
                     ])
                     ->columns(2),
 
-                Forms\Components\Section::make('Web Server Configuration')
+                // PHP Configuration Section
+                Forms\Components\Section::make('PHP Configuration')
                     ->description('Choose your web server stack and PHP version. These settings apply immediately after saving.')
                     ->icon('heroicon-o-cog-6-tooth')
+                    ->visible(fn (Get $get) => $get('app_type') === WebApp::APP_TYPE_PHP)
                     ->headerActions([
                         Forms\Components\Actions\Action::make('ai_which_stack')
                             ->label('Which stack?')
@@ -128,9 +143,104 @@ class WebAppResource extends Resource
                     ])
                     ->columns(3),
 
+                // Node.js Configuration Section
+                Forms\Components\Section::make('Node.js Configuration')
+                    ->description('Configure your Node.js application runtime and build settings.')
+                    ->icon('heroicon-o-code-bracket')
+                    ->visible(fn (Get $get) => $get('app_type') === WebApp::APP_TYPE_NODEJS)
+                    ->headerActions([
+                        Forms\Components\Actions\Action::make('ai_nodejs_framework')
+                            ->label('Which framework?')
+                            ->icon('heroicon-m-sparkles')
+                            ->color('primary')
+                            ->size('sm')
+                            ->visible(fn () => config('ai.enabled'))
+                            ->extraAttributes([
+                                'x-data' => '',
+                                'x-on:click.prevent' => 'openAiChat(' . json_encode("Help me choose a Node.js framework for my project. Compare Next.js, Nuxt.js, NestJS, Express, Remix, and Astro. What are the use cases and trade-offs for each?") . ')',
+                            ]),
+                    ])
+                    ->schema([
+                        Forms\Components\Select::make('node_version')
+                            ->label('Node.js Version')
+                            ->options(WebApp::getNodeVersionOptions())
+                            ->default('22')
+                            ->required()
+                            ->helperText('LTS versions recommended for production'),
+                        Forms\Components\Select::make('package_manager')
+                            ->options([
+                                WebApp::PACKAGE_MANAGER_NPM => 'npm (Default)',
+                                WebApp::PACKAGE_MANAGER_YARN => 'Yarn',
+                                WebApp::PACKAGE_MANAGER_PNPM => 'pnpm (Fastest)',
+                            ])
+                            ->default(WebApp::PACKAGE_MANAGER_NPM)
+                            ->helperText('Choose based on your project lockfile'),
+                        Forms\Components\Select::make('static_assets_path')
+                            ->label('Framework / Static Assets')
+                            ->options(NodeNginxConfigGenerator::getFrameworkOptions())
+                            ->placeholder('Select framework or custom')
+                            ->helperText('Sets static asset caching and default commands')
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                if ($state && $config = NodeNginxConfigGenerator::getFrameworkConfig($state)) {
+                                    if ($config['static_path']) {
+                                        $set('static_assets_path', $config['static_path']);
+                                    }
+                                    if ($config['health_check']) {
+                                        $set('health_check_path', $config['health_check']);
+                                    }
+                                    if ($config['start_command']) {
+                                        $set('start_command', $config['start_command']);
+                                    }
+                                    if ($config['build_command']) {
+                                        $set('build_command', $config['build_command']);
+                                    }
+                                }
+                            }),
+                        Forms\Components\TextInput::make('start_command')
+                            ->label('Start Command')
+                            ->placeholder('npm start')
+                            ->helperText('Command to start your application'),
+                        Forms\Components\TextInput::make('build_command')
+                            ->label('Build Command')
+                            ->placeholder('npm run build')
+                            ->helperText('Command to build your application'),
+                        Forms\Components\TextInput::make('health_check_path')
+                            ->label('Health Check Path')
+                            ->placeholder('/api/health')
+                            ->helperText('Endpoint for health monitoring'),
+                    ])
+                    ->columns(3),
+
+                // Static Site Configuration
+                Forms\Components\Section::make('Static Site Configuration')
+                    ->description('Configure your static site build settings.')
+                    ->icon('heroicon-o-document')
+                    ->visible(fn (Get $get) => $get('app_type') === WebApp::APP_TYPE_STATIC)
+                    ->schema([
+                        Forms\Components\Select::make('package_manager')
+                            ->options([
+                                WebApp::PACKAGE_MANAGER_NPM => 'npm',
+                                WebApp::PACKAGE_MANAGER_YARN => 'Yarn',
+                                WebApp::PACKAGE_MANAGER_PNPM => 'pnpm',
+                            ])
+                            ->default(WebApp::PACKAGE_MANAGER_NPM)
+                            ->helperText('Used for building assets'),
+                        Forms\Components\TextInput::make('build_command')
+                            ->label('Build Command')
+                            ->placeholder('npm run build')
+                            ->helperText('Command to build your static site'),
+                        Forms\Components\TextInput::make('public_path')
+                            ->default('dist')
+                            ->placeholder('dist')
+                            ->helperText('Output directory: Vite/Vue: "dist" | Next.js: "out"'),
+                    ])
+                    ->columns(3),
+
                 Forms\Components\Section::make('PHP Settings')
                     ->description('Override PHP configuration values. Common settings like upload size and memory limits.')
                     ->icon('heroicon-o-adjustments-horizontal')
+                    ->visible(fn (Get $get) => $get('app_type') === WebApp::APP_TYPE_PHP)
                     ->headerActions([
                         Forms\Components\Actions\Action::make('ai_php_settings')
                             ->label('Recommended settings')
@@ -240,11 +350,27 @@ class WebAppResource extends Resource
                     ->columns(3),
 
                 Infolists\Components\Section::make('Configuration')
-                    ->description('Web server stack and file paths for this application.')
+                    ->description('Runtime configuration for this application.')
                     ->icon('heroicon-o-cog-6-tooth')
                     ->schema([
+                        Infolists\Components\TextEntry::make('app_type')
+                            ->label('Type')
+                            ->badge()
+                            ->formatStateUsing(fn ($state) => match ($state) {
+                                WebApp::APP_TYPE_PHP => 'PHP',
+                                WebApp::APP_TYPE_NODEJS => 'Node.js',
+                                WebApp::APP_TYPE_STATIC => 'Static',
+                                default => $state,
+                            })
+                            ->color(fn ($state) => match ($state) {
+                                WebApp::APP_TYPE_PHP => 'info',
+                                WebApp::APP_TYPE_NODEJS => 'success',
+                                WebApp::APP_TYPE_STATIC => 'gray',
+                                default => 'gray',
+                            }),
                         Infolists\Components\TextEntry::make('web_server')
                             ->label('Web Server')
+                            ->visible(fn ($record) => $record->app_type === WebApp::APP_TYPE_PHP)
                             ->formatStateUsing(fn ($state) => match ($state) {
                                 'nginx' => 'Nginx',
                                 'nginx-apache' => 'Nginx + Apache',
@@ -252,7 +378,18 @@ class WebAppResource extends Resource
                             }),
                         Infolists\Components\TextEntry::make('php_version')
                             ->label('PHP Version')
-                            ->prefix('PHP '),
+                            ->prefix('PHP ')
+                            ->visible(fn ($record) => $record->app_type === WebApp::APP_TYPE_PHP),
+                        Infolists\Components\TextEntry::make('node_version')
+                            ->label('Node.js Version')
+                            ->prefix('v')
+                            ->visible(fn ($record) => $record->app_type === WebApp::APP_TYPE_NODEJS),
+                        Infolists\Components\TextEntry::make('node_port')
+                            ->label('Port')
+                            ->visible(fn ($record) => $record->app_type === WebApp::APP_TYPE_NODEJS),
+                        Infolists\Components\TextEntry::make('package_manager')
+                            ->label('Package Manager')
+                            ->visible(fn ($record) => $record->app_type !== WebApp::APP_TYPE_PHP),
                         Infolists\Components\TextEntry::make('public_path')
                             ->label('Public Path')
                             ->placeholder('/'),
@@ -262,6 +399,29 @@ class WebAppResource extends Resource
                             ->helperText('The full path to your public files'),
                     ])
                     ->columns(4),
+
+                Infolists\Components\Section::make('Node.js Commands')
+                    ->description('Build and start commands for your Node.js application.')
+                    ->icon('heroicon-o-command-line')
+                    ->visible(fn ($record) => $record->app_type === WebApp::APP_TYPE_NODEJS)
+                    ->schema([
+                        Infolists\Components\TextEntry::make('start_command')
+                            ->label('Start Command')
+                            ->copyable()
+                            ->placeholder('npm start'),
+                        Infolists\Components\TextEntry::make('build_command')
+                            ->label('Build Command')
+                            ->copyable()
+                            ->placeholder('npm run build'),
+                        Infolists\Components\TextEntry::make('health_check_path')
+                            ->label('Health Check')
+                            ->placeholder('Not configured'),
+                        Infolists\Components\TextEntry::make('static_assets_path')
+                            ->label('Static Assets Path')
+                            ->placeholder('Not configured'),
+                    ])
+                    ->columns(4)
+                    ->collapsible(),
 
                 Infolists\Components\Section::make('Git Repository')
                     ->description('Configure Git deployment to automatically deploy code from your repository.')
@@ -338,9 +498,25 @@ class WebAppResource extends Resource
                         'success' => WebApp::STATUS_ACTIVE,
                         'danger' => [WebApp::STATUS_SUSPENDED, WebApp::STATUS_DELETING],
                     ]),
+                Tables\Columns\TextColumn::make('app_type')
+                    ->label('Type')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => match ($state) {
+                        WebApp::APP_TYPE_PHP => 'PHP',
+                        WebApp::APP_TYPE_NODEJS => 'Node.js',
+                        WebApp::APP_TYPE_STATIC => 'Static',
+                        default => $state,
+                    })
+                    ->color(fn ($state) => match ($state) {
+                        WebApp::APP_TYPE_PHP => 'info',
+                        WebApp::APP_TYPE_NODEJS => 'success',
+                        WebApp::APP_TYPE_STATIC => 'gray',
+                        default => 'gray',
+                    }),
                 Tables\Columns\TextColumn::make('php_version')
                     ->label('PHP')
                     ->badge()
+                    ->visible(fn ($record) => $record->app_type === WebApp::APP_TYPE_PHP)
                     ->color(fn ($state) => match ($state) {
                         '7.4', '8.0' => 'danger',  // EOL
                         '8.1' => 'warning',        // Security only
@@ -352,6 +528,12 @@ class WebAppResource extends Resource
                         '8.1' => 'Security updates only until December 2025',
                         default => null,
                     }),
+                Tables\Columns\TextColumn::make('node_version')
+                    ->label('Node')
+                    ->badge()
+                    ->color('success')
+                    ->prefix('v')
+                    ->visible(fn ($record) => $record->app_type === WebApp::APP_TYPE_NODEJS),
                 Tables\Columns\BadgeColumn::make('ssl_status')
                     ->label('SSL')
                     ->colors([
@@ -372,6 +554,13 @@ class WebAppResource extends Resource
                         WebApp::STATUS_CREATING => 'Creating',
                         WebApp::STATUS_ACTIVE => 'Active',
                         WebApp::STATUS_SUSPENDED => 'Suspended',
+                    ]),
+                Tables\Filters\SelectFilter::make('app_type')
+                    ->label('Type')
+                    ->options([
+                        WebApp::APP_TYPE_PHP => 'PHP',
+                        WebApp::APP_TYPE_NODEJS => 'Node.js',
+                        WebApp::APP_TYPE_STATIC => 'Static',
                     ]),
                 Tables\Filters\SelectFilter::make('server_id')
                     ->relationship('server', 'name')
