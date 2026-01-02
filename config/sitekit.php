@@ -95,6 +95,34 @@ BASH,
 
     /*
     |--------------------------------------------------------------------------
+    | Node.js Configuration
+    |--------------------------------------------------------------------------
+    */
+
+    'node_versions' => [
+        '24' => 'Node.js 24 (Latest)',
+        '22' => 'Node.js 22 LTS (Recommended)',
+        '20' => 'Node.js 20 LTS',
+        '18' => 'Node.js 18 LTS',
+    ],
+
+    'default_node_version' => env('SITEKIT_DEFAULT_NODE_VERSION', '22'),
+
+    // Port range for Node.js applications
+    'nodejs_port_min' => env('SITEKIT_NODEJS_PORT_MIN', 3000),
+    'nodejs_port_max' => env('SITEKIT_NODEJS_PORT_MAX', 3999),
+
+    // Package managers
+    'package_managers' => [
+        'npm' => 'npm (Default)',
+        'yarn' => 'Yarn',
+        'pnpm' => 'pnpm',
+    ],
+
+    'default_package_manager' => env('SITEKIT_DEFAULT_PACKAGE_MANAGER', 'npm'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Web Server Configuration
     |--------------------------------------------------------------------------
     */
