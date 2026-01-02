@@ -34,17 +34,40 @@ class WebApp extends Model
     public const WEB_SERVER_NGINX = 'nginx';
     public const WEB_SERVER_NGINX_APACHE = 'nginx_apache';
 
+    // Application types
+    public const APP_TYPE_PHP = 'php';
+    public const APP_TYPE_NODEJS = 'nodejs';
+    public const APP_TYPE_STATIC = 'static';
+
+    // Package managers for Node.js
+    public const PACKAGE_MANAGER_NPM = 'npm';
+    public const PACKAGE_MANAGER_YARN = 'yarn';
+    public const PACKAGE_MANAGER_PNPM = 'pnpm';
+
     protected $fillable = [
         'server_id',
         'team_id',
         'source_provider_id',
+        'supervisor_program_id',
         'name',
         'domain',
         'aliases',
         'system_user',
         'public_path',
+        'app_type',
         'web_server',
         'php_version',
+        'node_version',
+        'node_port',
+        'package_manager',
+        'start_command',
+        'build_command',
+        'node_processes',
+        'proxy_routes',
+        'pre_deploy_script',
+        'post_deploy_script',
+        'static_assets_path',
+        'health_check_path',
         'ssl_status',
         'ssl_expires_at',
         'status',
@@ -76,6 +99,9 @@ class WebApp extends Model
             'auto_deploy' => 'boolean',
             'environment_variables' => 'encrypted:array',
             'last_error_at' => 'datetime',
+            // Node.js JSON fields
+            'node_processes' => 'array',
+            'proxy_routes' => 'array',
         ];
     }
 
@@ -110,6 +136,11 @@ class WebApp extends Model
     public function sourceProvider(): BelongsTo
     {
         return $this->belongsTo(SourceProvider::class);
+    }
+
+    public function supervisorProgram(): BelongsTo
+    {
+        return $this->belongsTo(SupervisorProgram::class);
     }
 
     public function deployments(): HasMany
@@ -199,9 +230,21 @@ class WebApp extends Model
 
     /**
      * Get the default build script for deployments.
-     * Includes composer install and common Laravel/PHP setup tasks.
+     * Returns appropriate script based on app type.
      */
     public function getDefaultBuildScript(): string
+    {
+        return match ($this->app_type) {
+            self::APP_TYPE_NODEJS => $this->getNodeJsBuildScript(),
+            self::APP_TYPE_STATIC => $this->getStaticBuildScript(),
+            default => $this->getPhpBuildScript(),
+        };
+    }
+
+    /**
+     * Get the default build script for PHP applications.
+     */
+    protected function getPhpBuildScript(): string
     {
         return <<<'SCRIPT'
 # Install PHP dependencies
@@ -241,6 +284,47 @@ fi
 
 # Set proper permissions
 chmod -R 755 storage bootstrap/cache 2>/dev/null || true
+SCRIPT;
+    }
+
+    /**
+     * Get the default build script for Node.js applications.
+     */
+    protected function getNodeJsBuildScript(): string
+    {
+        $installCmd = $this->getInstallCommand();
+        $buildCmd = $this->build_command ?: $this->getDefaultBuildCommand();
+
+        return <<<SCRIPT
+# Install Node.js dependencies
+{$installCmd}
+
+# Run build command
+{$buildCmd}
+
+# Run pre-deploy script if defined
+if [ -n "\$PRE_DEPLOY_SCRIPT" ]; then
+    eval "\$PRE_DEPLOY_SCRIPT"
+fi
+SCRIPT;
+    }
+
+    /**
+     * Get the default build script for static applications.
+     */
+    protected function getStaticBuildScript(): string
+    {
+        $installCmd = $this->getInstallCommand();
+        $buildCmd = $this->build_command ?: $this->getDefaultBuildCommand();
+
+        return <<<SCRIPT
+# Install dependencies if package.json exists
+if [ -f "package.json" ]; then
+    {$installCmd}
+
+    # Build static assets
+    {$buildCmd}
+fi
 SCRIPT;
     }
 
@@ -284,6 +368,70 @@ SCRIPT;
     public function hasSSL(): bool
     {
         return $this->ssl_status === self::SSL_ACTIVE;
+    }
+
+    public function isPhp(): bool
+    {
+        return $this->app_type === self::APP_TYPE_PHP;
+    }
+
+    public function isNodeJs(): bool
+    {
+        return $this->app_type === self::APP_TYPE_NODEJS;
+    }
+
+    public function isStatic(): bool
+    {
+        return $this->app_type === self::APP_TYPE_STATIC;
+    }
+
+    /**
+     * Get available Node.js versions.
+     */
+    public static function getNodeVersionOptions(): array
+    {
+        return [
+            '24' => 'Node.js 24 (Latest)',
+            '22' => 'Node.js 22 LTS',
+            '20' => 'Node.js 20 LTS',
+            '18' => 'Node.js 18 LTS',
+        ];
+    }
+
+    /**
+     * Get the default start command based on package manager.
+     */
+    public function getDefaultStartCommand(): string
+    {
+        return match ($this->package_manager) {
+            self::PACKAGE_MANAGER_YARN => 'yarn start',
+            self::PACKAGE_MANAGER_PNPM => 'pnpm start',
+            default => 'npm start',
+        };
+    }
+
+    /**
+     * Get the default build command based on package manager.
+     */
+    public function getDefaultBuildCommand(): string
+    {
+        return match ($this->package_manager) {
+            self::PACKAGE_MANAGER_YARN => 'yarn build',
+            self::PACKAGE_MANAGER_PNPM => 'pnpm build',
+            default => 'npm run build',
+        };
+    }
+
+    /**
+     * Get the install command based on package manager.
+     */
+    public function getInstallCommand(): string
+    {
+        return match ($this->package_manager) {
+            self::PACKAGE_MANAGER_YARN => 'yarn install --frozen-lockfile',
+            self::PACKAGE_MANAGER_PNPM => 'pnpm install --frozen-lockfile',
+            default => 'npm ci',
+        };
     }
 
     public function getEnvFileContent(): string
