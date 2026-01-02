@@ -84,6 +84,7 @@ NGINX;
     {
         $base = $this->generate($app);
         $domain = $app->domain;
+        $domains = collect([$app->domain, ...($app->aliases ?? [])])->implode(' ');
         $documentRoot = $app->document_root;
         $phpVersion = $app->php_version;
         $appId = $app->id;
@@ -93,7 +94,7 @@ NGINX;
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name {$domain};
+    server_name {$domains};
     root {$documentRoot};
 
     ssl_certificate /etc/letsencrypt/live/{$domain}/fullchain.pem;

@@ -118,7 +118,7 @@ class SslCertificate extends Model
             'team_id' => $this->webApp->team_id,
             'type' => 'ssl_renew',
             'payload' => [
-                'cert_id' => $this->id,
+                'certificate_id' => $this->id,
                 'domain' => $this->domain,
                 'force' => $force,
             ],
