@@ -13,8 +13,11 @@ use App\Models\ServerProvisioningStep;
 use App\Models\ServerStat;
 use App\Models\Service;
 use App\Models\ServiceStat;
+use App\Models\SupervisorProgram;
+use App\Models\WebApp;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class AgentController extends Controller
 {
@@ -404,6 +407,12 @@ class AgentController extends Controller
         if ($success) {
             $deployment->markAs(\App\Models\Deployment::STATUS_ACTIVE);
 
+            // Restart Node.js supervisor program if this is a Node.js app
+            $webApp = $deployment->webApp;
+            if ($webApp && $webApp->isNodeJs()) {
+                $this->restartNodeSupervisor($webApp);
+            }
+
             // Notify user of successful deployment
             $owner = $deployment->team->owner;
             if ($owner) {
@@ -420,16 +429,55 @@ class AgentController extends Controller
         }
     }
 
+    /**
+     * Restart the supervisor program for a Node.js web app after deployment.
+     */
+    protected function restartNodeSupervisor(WebApp $webApp): void
+    {
+        // Check for supervisor program linked to this web app
+        if ($webApp->supervisor_program_id) {
+            $program = SupervisorProgram::find($webApp->supervisor_program_id);
+            if ($program) {
+                $program->dispatchJob('supervisor_restart', [
+                    'name' => $program->name,
+                ], 3); // Higher priority for restart
+
+                Log::info("Dispatched supervisor restart after deploy", [
+                    'web_app_id' => $webApp->id,
+                    'program_id' => $program->id,
+                ]);
+            }
+        }
+
+        // Also check for any supervisor programs linked to this web app (monorepo)
+        $programs = SupervisorProgram::where('web_app_id', $webApp->id)->get();
+        foreach ($programs as $program) {
+            // Skip the main one if already restarted
+            if ($program->id === $webApp->supervisor_program_id) {
+                continue;
+            }
+
+            $program->dispatchJob('supervisor_restart', [
+                'name' => $program->name,
+            ], 3);
+        }
+    }
+
     protected function handleWebAppCreateCallback(array $payload, bool $success, ?string $error): void
     {
-        $webApp = \App\Models\WebApp::find($payload['app_id'] ?? $payload['web_app_id'] ?? null);
+        $webApp = WebApp::find($payload['app_id'] ?? $payload['web_app_id'] ?? null);
         if (!$webApp) {
             return;
         }
 
         if ($success) {
-            $webApp->update(['status' => \App\Models\WebApp::STATUS_ACTIVE]);
+            $webApp->update(['status' => WebApp::STATUS_ACTIVE]);
             $webApp->clearError();
+
+            // Create supervisor program for Node.js apps
+            if ($webApp->isNodeJs()) {
+                $this->createNodeSupervisorProgram($webApp);
+            }
 
             // Notify user of successful web app creation
             $owner = $webApp->team?->owner;
@@ -437,15 +485,16 @@ class AgentController extends Controller
                 $owner->notify(new \App\Notifications\WebAppCreated($webApp));
             }
         } else {
-            $webApp->update([
-                'status' => \App\Models\WebApp::STATUS_FAILED,
-                'error_message' => $error,
-            ]);
-
-            // Record user-friendly error
+            // Record user-friendly error first (this sets status to 'error')
             if ($error) {
                 $webApp->recordError($error);
             }
+
+            // Then override with proper failed status
+            $webApp->update([
+                'status' => WebApp::STATUS_FAILED,
+                'error_message' => $error,
+            ]);
 
             // Notify team owner of web app creation failure
             $owner = $webApp->team?->owner;
@@ -453,6 +502,148 @@ class AgentController extends Controller
                 $owner->notify(new \App\Notifications\WebAppCreationFailed($webApp, $error ?? 'Web app creation failed'));
             }
         }
+    }
+
+    /**
+     * Create a supervisor program for a Node.js web app.
+     */
+    protected function createNodeSupervisorProgram(WebApp $webApp): ?SupervisorProgram
+    {
+        if (!$webApp->isNodeJs() || !$webApp->node_port) {
+            return null;
+        }
+
+        // Build the command string
+        $command = $this->buildNodeCommand($webApp);
+
+        // Create the supervisor program
+        $program = SupervisorProgram::create([
+            'server_id' => $webApp->server_id,
+            'team_id' => $webApp->team_id,
+            'web_app_id' => $webApp->id,
+            'name' => "nodejs-{$webApp->id}",
+            'command' => $command,
+            'directory' => "{$webApp->root_path}/current",
+            'user' => $webApp->system_user ?? 'sitekit',
+            'numprocs' => 1,
+            'autostart' => true,
+            'autorestart' => true,
+            'startsecs' => 10,
+            'stopwaitsecs' => 30,
+            'stdout_logfile' => "{$webApp->root_path}/logs/node.log",
+            'stderr_logfile' => "{$webApp->root_path}/logs/node-error.log",
+            'environment' => [
+                'NODE_ENV' => 'production',
+                'PORT' => (string) $webApp->node_port,
+                'HOME' => "/home/{$webApp->system_user}",
+            ],
+            'status' => SupervisorProgram::STATUS_PENDING,
+        ]);
+
+        // Link the program to the web app
+        $webApp->update(['supervisor_program_id' => $program->id]);
+
+        // Dispatch job to create the supervisor config on the server
+        $program->dispatchJob('supervisor_create', [
+            'config' => $program->generateConfig(),
+            'name' => $program->name,
+        ]);
+
+        Log::info("Created supervisor program for Node.js app", [
+            'web_app_id' => $webApp->id,
+            'program_id' => $program->id,
+            'port' => $webApp->node_port,
+        ]);
+
+        return $program;
+    }
+
+    /**
+     * Create multiple supervisor programs for monorepo Node.js apps.
+     */
+    protected function createNodeSupervisorPrograms(WebApp $webApp): array
+    {
+        if (!$webApp->isNodeJs() || empty($webApp->node_processes)) {
+            return [];
+        }
+
+        $programs = [];
+
+        foreach ($webApp->node_processes as $index => $process) {
+            $name = $process['name'] ?? "process-{$index}";
+            $command = $process['command'] ?? $this->buildNodeCommand($webApp);
+            $port = $process['port'] ?? ($webApp->node_port + $index);
+            $directory = $process['directory'] ?? "{$webApp->root_path}/current";
+
+            $program = SupervisorProgram::create([
+                'server_id' => $webApp->server_id,
+                'team_id' => $webApp->team_id,
+                'web_app_id' => $webApp->id,
+                'name' => "nodejs-{$webApp->id}-{$name}",
+                'command' => $command,
+                'directory' => $directory,
+                'user' => $webApp->system_user ?? 'sitekit',
+                'numprocs' => 1,
+                'autostart' => true,
+                'autorestart' => true,
+                'startsecs' => 10,
+                'stopwaitsecs' => 30,
+                'stdout_logfile' => "{$webApp->root_path}/logs/{$name}.log",
+                'stderr_logfile' => "{$webApp->root_path}/logs/{$name}-error.log",
+                'environment' => [
+                    'NODE_ENV' => 'production',
+                    'PORT' => (string) $port,
+                    'HOME' => "/home/{$webApp->system_user}",
+                ],
+                'status' => SupervisorProgram::STATUS_PENDING,
+            ]);
+
+            // Dispatch job to create the supervisor config
+            $program->dispatchJob('supervisor_create', [
+                'config' => $program->generateConfig(),
+                'name' => $program->name,
+            ]);
+
+            $programs[] = $program;
+        }
+
+        // Link the first program to the web app (main process)
+        if (!empty($programs)) {
+            $webApp->update(['supervisor_program_id' => $programs[0]->id]);
+        }
+
+        Log::info("Created supervisor programs for monorepo Node.js app", [
+            'web_app_id' => $webApp->id,
+            'program_count' => count($programs),
+        ]);
+
+        return $programs;
+    }
+
+    /**
+     * Build the command string for a Node.js app.
+     */
+    protected function buildNodeCommand(WebApp $webApp): string
+    {
+        // Use the start_command if set, otherwise use default
+        $command = $webApp->start_command ?: $webApp->getDefaultStartCommand();
+
+        // For npm/yarn/pnpm commands, use the full path
+        $packageManager = $webApp->package_manager ?? WebApp::PACKAGE_MANAGER_NPM;
+
+        // If the command starts with a package manager, ensure proper environment
+        if (preg_match('/^(npm|yarn|pnpm)\s/', $command)) {
+            // The command already uses a package manager, use as-is
+            return $command;
+        }
+
+        // If it's a direct node command (e.g., "node dist/main.js"), use as-is
+        if (str_starts_with($command, 'node ')) {
+            return $command;
+        }
+
+        // Otherwise, assume it's a script name and prefix with package manager
+        return "{$packageManager} run {$command}";
     }
 
     protected function handleWebAppDeleteCallback(array $payload, bool $success): void
