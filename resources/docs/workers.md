@@ -115,3 +115,42 @@ Access at `yourdomain.com/horizon` (requires authentication).
 - Set appropriate `--tries` for job reliability
 - Use separate workers for different queue priorities
 - Configure proper logging for debugging
+
+---
+
+## Node.js Process Management
+
+Node.js applications run as supervised processes. When you create a Node.js web app, SiteKit automatically creates a supervisor program to manage it.
+
+**Automatic Setup:**
+When a Node.js app is created:
+1. A supervisor configuration is generated
+2. The process starts automatically
+3. Crashes are auto-restarted
+4. Logs are written to the app's logs directory
+
+**Node.js Supervisor Config:**
+```ini
+[program:myapp-nodejs]
+command=/home/sitekit/myapp.com/start.sh
+directory=/home/sitekit/myapp.com/current
+user=sitekit
+autostart=true
+autorestart=true
+stdout_logfile=/home/sitekit/myapp.com/logs/app.log
+stderr_logfile=/home/sitekit/myapp.com/logs/error.log
+environment=NODE_ENV="production",PORT="3001"
+```
+
+**Custom Workers for Node.js:**
+Need additional workers (e.g., job queue)? Create them manually:
+```bash
+node /home/sitekit/myapp.com/current/worker.js
+```
+
+**PM2 Alternative:**
+While SiteKit uses Supervisor by default, you can also use PM2 for Node.js apps:
+```bash
+pm2 start ecosystem.config.js
+```
+Create a supervisor program to run PM2 if desired.

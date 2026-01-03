@@ -8,15 +8,89 @@ Create a new web application on any provisioned server.
 1. Navigate to "Web Apps" → "Create Web App"
 2. Select a server to deploy to
 3. Enter your domain name (e.g., `example.com`)
-4. Choose the PHP version
-5. Select project type (Laravel, WordPress, Static, or Generic)
+4. Choose the **Application Type** (PHP, Node.js, or Static)
+5. Configure runtime settings
 6. Connect your Git repository
 
-**Project Types:**
-- **Laravel**: Pre-configured for Laravel with Composer, artisan commands
-- **WordPress**: Optimized for WordPress with proper permissions
-- **Static**: Simple static file hosting
-- **Generic**: Custom PHP application
+**Application Types:**
+- **PHP**: Laravel, WordPress, Symfony, or any PHP application
+- **Node.js**: Next.js, NestJS, Express, Nuxt.js, or any Node.js application
+- **Static**: HTML, React SPA, Vue SPA, or any static site
+
+---
+
+## Node.js Applications
+
+Deploy and manage Node.js applications with full support for modern frameworks.
+
+### Creating a Node.js Web App
+
+1. Navigate to "Web Apps" → "Create Web App"
+2. Select "Node.js" as the Application Type
+3. Configure Node.js settings:
+   - **Node.js Version**: Choose from 18, 20, 22, or 24 LTS
+   - **Package Manager**: npm, yarn, or pnpm
+   - **Framework**: Select your framework for optimized defaults
+   - **Start Command**: How to start your app (e.g., `npm start`)
+   - **Build Command**: How to build your app (e.g., `npm run build`)
+
+### Supported Frameworks
+
+| Framework | Default Start Command | Default Build | Static Assets |
+|-----------|----------------------|---------------|---------------|
+| Next.js | `npm start` | `npm run build` | `/_next/static/` |
+| Nuxt.js | `node .output/server/index.mjs` | `npm run build` | `/_nuxt/` |
+| NestJS | `node dist/main` | `npm run build` | - |
+| Express | `node src/index.js` | - | - |
+| Remix | `npm start` | `npm run build` | `/build/` |
+| Astro | `node dist/server/entry.mjs` | `npm run build` | `/_astro/` |
+| SvelteKit | `node build/index.js` | `npm run build` | `/_app/` |
+
+### Port Configuration
+
+Each Node.js app is automatically assigned a unique port (3000-3999). Nginx reverse proxy routes traffic from port 80/443 to your app's port.
+
+- Port is allocated automatically on app creation
+- Port is released when app is deleted
+- For monorepos, multiple consecutive ports can be allocated
+
+### Environment Variables
+
+Node.js apps automatically have these environment variables set:
+- `NODE_ENV=production`
+- `PORT=<assigned port>`
+- `HOME=/home/<system user>`
+
+Add custom variables in the Environment Variables section.
+
+### Prisma Support
+
+If your project uses Prisma, add these to your pre-deploy script:
+```bash
+npx prisma generate
+npx prisma migrate deploy
+```
+
+### Deploy Hooks
+
+Use pre-deploy and post-deploy scripts for database migrations, cache clearing, etc.
+
+**Pre-Deploy Script** (runs before build):
+```bash
+# Example: Prisma migrations
+npx prisma migrate deploy
+npx prisma generate
+```
+
+**Post-Deploy Script** (runs after symlink swap):
+```bash
+# Example: Clear cache
+npm run cache:clear
+```
+
+---
+
+## PHP Applications
 
 **Web Root:**
 The default web root is `/public` for Laravel. Adjust for other frameworks:

@@ -8,6 +8,7 @@ SiteKit is a modern server management platform that makes it easy to deploy and 
 
 - **Two-phase server provisioning** with real-time progress tracking
 - **Git-based deployments** with zero-downtime releases
+- **Multiple app types**: PHP, Node.js, and Static sites
 - **Free SSL certificates** via Let's Encrypt
 - **Database management** (MariaDB, MySQL, PostgreSQL)
 - **Background job workers** with Supervisor
@@ -65,8 +66,10 @@ This is the standard pattern for tools like Forge, Coolify, and CapRover.
 
 1. Click "Web Apps" → "Create Web App"
 2. Select your server
-3. Enter domain name and PHP version
-4. Connect your Git repository
+3. Enter domain name
+4. Choose application type (PHP, Node.js, or Static)
+5. Configure runtime settings
+6. Connect your Git repository
 
 ### Step 3: Deploy
 
@@ -92,7 +95,12 @@ You can retry failed steps or skip optional components.
 
 ### Web Apps
 
-Applications deployed to your servers. Each web app has its own domain, PHP pool, and deployment configuration.
+Applications deployed to your servers. SiteKit supports three types:
+- **PHP**: Laravel, Symfony, WordPress (runs via PHP-FPM)
+- **Node.js**: Next.js, NestJS, Express (runs via Supervisor)
+- **Static**: React SPA, Vue SPA, HTML (served directly by Nginx)
+
+Each web app has its own domain, process configuration, and deployment settings.
 
 ### Services
 

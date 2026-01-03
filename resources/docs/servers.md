@@ -41,9 +41,10 @@ SiteKit uses a two-phase provisioning approach for reliability:
   - **System**: Security updates, UFW firewall, fail2ban
   - **Web Server**: Nginx with security headers
   - **PHP**: Versions 8.1, 8.2, 8.3 with extensions
+  - **Node.js**: LTS version with npm, pnpm, and yarn
   - **Database**: MariaDB with secure credentials
   - **Cache**: Redis
-  - **Tools**: Composer, Node.js, Supervisor
+  - **Tools**: Composer, Supervisor
 
 **Progress Tracking:**
 - Real-time progress bar shows completion percentage
@@ -65,6 +66,7 @@ SiteKit uses a two-phase provisioning approach for reliability:
 After provisioning, your server includes:
 - Nginx (web server)
 - PHP 8.1, 8.2, 8.3, 8.4, 8.5 FPM (PHP processor)
+- Node.js LTS (with npm, pnpm, yarn)
 - MariaDB (database)
 - Redis (cache)
 - Supervisor (process manager)

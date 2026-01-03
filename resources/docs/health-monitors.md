@@ -114,9 +114,23 @@ Click on a monitor to see:
 **What to monitor:**
 - Your main website/app URLs
 - API health endpoints
+- Node.js app health endpoints (e.g., `/health` or `/api/health`)
 - Database connection (TCP)
 - Critical third-party services
 - SSL certificate expiry (30 days warning)
+
+**Monitoring Node.js Apps:**
+For Node.js applications, monitor the health endpoint configured in your app settings. Common patterns:
+- Next.js: `/api/health`
+- NestJS: `/health`
+- Express: `/health` or `/api/health`
+
+Example health endpoint (Express):
+```javascript
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime() });
+});
+```
 
 **Monitor your monitors:**
 - Check that notifications are being received
