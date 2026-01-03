@@ -237,6 +237,27 @@ class WebAppResource extends Resource
                     ])
                     ->columns(3),
 
+                // Deploy Hooks Section
+                Forms\Components\Section::make('Deploy Hooks')
+                    ->description('Run custom scripts before or after deployment. Useful for database migrations, cache clearing, etc.')
+                    ->icon('heroicon-o-command-line')
+                    ->visible(fn (Get $get) => in_array($get('app_type'), [WebApp::APP_TYPE_NODEJS, WebApp::APP_TYPE_PHP]))
+                    ->schema([
+                        Forms\Components\Textarea::make('pre_deploy_script')
+                            ->label('Pre-Deploy Script')
+                            ->placeholder("# Example for Prisma:\nnpx prisma migrate deploy\nnpx prisma generate")
+                            ->helperText('Runs after dependencies install, before build. Common uses: database migrations.')
+                            ->rows(3),
+                        Forms\Components\Textarea::make('post_deploy_script')
+                            ->label('Post-Deploy Script')
+                            ->placeholder("# Example for Laravel:\nphp artisan cache:clear\nphp artisan config:cache")
+                            ->helperText('Runs after symlink swap. Common uses: cache clearing, queue restart.')
+                            ->rows(3),
+                    ])
+                    ->columns(2)
+                    ->collapsible()
+                    ->collapsed(),
+
                 Forms\Components\Section::make('PHP Settings')
                     ->description('Override PHP configuration values. Common settings like upload size and memory limits.')
                     ->icon('heroicon-o-adjustments-horizontal')
