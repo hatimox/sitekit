@@ -68,6 +68,7 @@ class WebApp extends Model
         'post_deploy_script',
         'static_assets_path',
         'health_check_path',
+        'cache_node_modules',
         'ssl_status',
         'ssl_expires_at',
         'status',
@@ -102,6 +103,7 @@ class WebApp extends Model
             // Node.js JSON fields
             'node_processes' => 'array',
             'proxy_routes' => 'array',
+            'cache_node_modules' => 'boolean',
         ];
     }
 
@@ -223,6 +225,13 @@ class WebApp extends Model
             'build_script' => $buildScript,
             'php_version' => $this->php_version,
             'env_content' => $this->getEnvFileContent(),
+            // Node.js specific fields
+            'app_type' => $this->app_type ?? self::APP_TYPE_PHP,
+            'node_version' => $this->node_version,
+            'package_manager' => $this->package_manager ?? self::PACKAGE_MANAGER_NPM,
+            'cache_node_modules' => $this->cache_node_modules ?? true,
+            'pre_deploy_script' => $this->pre_deploy_script,
+            'post_deploy_script' => $this->post_deploy_script,
         ], 1);
 
         return $deployment;

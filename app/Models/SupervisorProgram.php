@@ -43,6 +43,11 @@ class SupervisorProgram extends Model
         'uptime_seconds',
         'restart_count',
         'metrics_updated_at',
+        'is_healthy',
+        'last_health_check',
+        'consecutive_failures',
+        'health_check_interval',
+        'health_check_url',
     ];
 
     protected $casts = [
@@ -58,6 +63,10 @@ class SupervisorProgram extends Model
         'restart_count' => 'integer',
         'metrics_updated_at' => 'datetime',
         'last_error_at' => 'datetime',
+        'is_healthy' => 'boolean',
+        'last_health_check' => 'datetime',
+        'consecutive_failures' => 'integer',
+        'health_check_interval' => 'integer',
     ];
 
     public function server(): BelongsTo
@@ -114,6 +123,87 @@ class SupervisorProgram extends Model
             'payload' => array_merge(['program_id' => $this->id], $payload),
             'priority' => $priority,
         ]);
+    }
+
+    public function isHealthy(): bool
+    {
+        return $this->is_healthy;
+    }
+
+    public function needsHealthCheck(): bool
+    {
+        if (!$this->health_check_url) {
+            return false;
+        }
+
+        if (!$this->last_health_check) {
+            return true;
+        }
+
+        return $this->last_health_check->addSeconds($this->health_check_interval)->isPast();
+    }
+
+    public function markHealthy(): void
+    {
+        $wasUnhealthy = !$this->is_healthy;
+
+        $this->update([
+            'is_healthy' => true,
+            'last_health_check' => now(),
+            'consecutive_failures' => 0,
+        ]);
+
+        if ($wasUnhealthy) {
+            $this->notifyRecovered();
+        }
+    }
+
+    public function markUnhealthy(): void
+    {
+        $wasHealthy = $this->is_healthy;
+        $failures = $this->consecutive_failures + 1;
+
+        $this->update([
+            'last_health_check' => now(),
+            'consecutive_failures' => $failures,
+        ]);
+
+        // Mark as unhealthy after 3 consecutive failures
+        if ($failures >= 3 && $wasHealthy) {
+            $this->update(['is_healthy' => false]);
+            $this->notifyDown();
+        }
+    }
+
+    protected function notifyDown(): void
+    {
+        // Fire notification for Node.js app down
+        if ($this->webApp && $this->team) {
+            $this->team->owner?->notify(new \App\Notifications\NodeAppDown($this));
+        }
+    }
+
+    protected function notifyRecovered(): void
+    {
+        // Fire notification for Node.js app recovered
+        if ($this->webApp && $this->team) {
+            $this->team->owner?->notify(new \App\Notifications\NodeAppRecovered($this));
+        }
+    }
+
+    public function getHealthCheckUrlAttribute(): ?string
+    {
+        // Auto-generate from web app if not set
+        if (!empty($this->attributes['health_check_url'])) {
+            return $this->attributes['health_check_url'];
+        }
+
+        if ($this->webApp && $this->webApp->health_check_path) {
+            $protocol = $this->webApp->ssl_status === 'active' ? 'https' : 'http';
+            return "{$protocol}://{$this->webApp->domain}{$this->webApp->health_check_path}";
+        }
+
+        return null;
     }
 
     public function generateConfig(): string

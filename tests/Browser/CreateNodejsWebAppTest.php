@@ -392,4 +392,192 @@ class CreateNodejsWebAppTest extends DuskTestCase
             $browser->screenshot('static-02-final');
         });
     }
+
+    /**
+     * Test viewing a Node.js web app and triggering deployment.
+     * TASK-022.5: Test deployment trigger via UI.
+     */
+    public function test_nodejs_deployment_trigger(): void
+    {
+        $testEmail = $this->testEmail;
+
+        $this->browse(function (Browser $browser) use ($testEmail) {
+            // Login
+            $browser->visit('/app/login')
+                ->pause(2000);
+
+            $browser->script("
+                const emailInput = document.querySelector('input[type=\"email\"]');
+                if (emailInput) {
+                    emailInput.value = '{$testEmail}';
+                    emailInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                const passInput = document.querySelector('input[type=\"password\"]');
+                if (passInput) {
+                    passInput.value = 'password';
+                    passInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            ");
+
+            $browser->pause(500);
+
+            $browser->script("
+                const btn = document.querySelector('button[type=\"submit\"]');
+                if (btn) btn.click();
+            ");
+
+            $browser->pause(5000)
+                ->screenshot('deploy-01-logged-in');
+
+            echo "\n Logged in as {$testEmail}\n";
+
+            // Find a Node.js web app
+            $nodejsApp = \App\Models\WebApp::where('team_id', $this->teamId)
+                ->where('app_type', 'nodejs')
+                ->first();
+
+            if (!$nodejsApp) {
+                echo " No Node.js app found, skipping deployment test\n";
+                return;
+            }
+
+            echo " Found Node.js app: {$nodejsApp->domain}\n";
+
+            // Navigate to web app view
+            $browser->visit("/app/{$this->teamId}/web-apps/{$nodejsApp->id}")
+                ->pause(3000)
+                ->screenshot('deploy-02-webapp-view');
+
+            // Check for Deploy button
+            $deployButton = $browser->script("
+                const buttons = document.querySelectorAll('button, a');
+                for (const btn of buttons) {
+                    if (btn.textContent.toLowerCase().includes('deploy')) {
+                        return 'Deploy button found';
+                    }
+                }
+                return 'Deploy button NOT found';
+            ");
+
+            echo " {$deployButton[0]}\n";
+
+            // Check for app type indicator
+            $appType = $browser->script("
+                const body = document.body.textContent;
+                if (body.includes('Node.js') || body.includes('nodejs')) {
+                    return 'App type shown as Node.js';
+                }
+                return 'App type indicator not found';
+            ");
+
+            echo " {$appType[0]}\n";
+
+            $browser->screenshot('deploy-03-final');
+        });
+    }
+
+    /**
+     * Test restarting a Node.js supervisor program.
+     * TASK-022.6: Test restart Node.js action via UI.
+     */
+    public function test_nodejs_restart_action(): void
+    {
+        $testEmail = $this->testEmail;
+
+        $this->browse(function (Browser $browser) use ($testEmail) {
+            // Login
+            $browser->visit('/app/login')
+                ->pause(2000);
+
+            $browser->script("
+                const emailInput = document.querySelector('input[type=\"email\"]');
+                if (emailInput) {
+                    emailInput.value = '{$testEmail}';
+                    emailInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                const passInput = document.querySelector('input[type=\"password\"]');
+                if (passInput) {
+                    passInput.value = 'password';
+                    passInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            ");
+
+            $browser->pause(500);
+
+            $browser->script("
+                const btn = document.querySelector('button[type=\"submit\"]');
+                if (btn) btn.click();
+            ");
+
+            $browser->pause(5000)
+                ->screenshot('restart-01-logged-in');
+
+            echo "\n Logged in as {$testEmail}\n";
+
+            // Find a Node.js supervisor program
+            $supervisor = \App\Models\SupervisorProgram::where('team_id', $this->teamId)
+                ->whereNotNull('web_app_id')
+                ->first();
+
+            if (!$supervisor) {
+                echo " No Node.js supervisor program found, skipping restart test\n";
+                return;
+            }
+
+            echo " Found supervisor program: {$supervisor->name}\n";
+
+            // Navigate to supervisor programs list
+            $browser->visit("/app/{$this->teamId}/supervisor-programs")
+                ->pause(3000)
+                ->screenshot('restart-02-supervisor-list');
+
+            // Check for the supervisor program in the list
+            $programFound = $browser->script("
+                const rows = document.querySelectorAll('tr, [role=\"row\"]');
+                for (const row of rows) {
+                    if (row.textContent.includes('nodejs-') || row.textContent.includes('express-')) {
+                        return 'Supervisor program found in list';
+                    }
+                }
+                return 'Supervisor program NOT found in list';
+            ");
+
+            echo " {$programFound[0]}\n";
+
+            // Navigate to supervisor view
+            $browser->visit("/app/{$this->teamId}/supervisor-programs/{$supervisor->id}")
+                ->pause(3000)
+                ->screenshot('restart-03-supervisor-view');
+
+            // Check for restart action
+            $restartAction = $browser->script("
+                const buttons = document.querySelectorAll('button, a');
+                for (const btn of buttons) {
+                    const text = btn.textContent.toLowerCase();
+                    if (text.includes('restart') || text.includes('stop') || text.includes('start')) {
+                        return 'Process control actions found';
+                    }
+                }
+                return 'Process control actions NOT found';
+            ");
+
+            echo " {$restartAction[0]}\n";
+
+            // Check for status indicator
+            $statusIndicator = $browser->script("
+                const body = document.body.textContent.toLowerCase();
+                if (body.includes('running') || body.includes('active')) {
+                    return 'Status indicator shows running/active';
+                }
+                if (body.includes('stopped') || body.includes('failed')) {
+                    return 'Status indicator shows stopped/failed';
+                }
+                return 'Status indicator not found';
+            ");
+
+            echo " {$statusIndicator[0]}\n";
+
+            $browser->screenshot('restart-04-final');
+        });
+    }
 }

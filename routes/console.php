@@ -8,6 +8,12 @@ Schedule::command('monitors:check')
     ->withoutOverlapping()
     ->runInBackground();
 
+// Node.js app health checks - every minute
+Schedule::command('node:health-check')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->runInBackground();
+
 // Server heartbeat checks - every 5 minutes
 Schedule::command('servers:check-heartbeats')
     ->everyFiveMinutes()
