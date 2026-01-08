@@ -156,11 +156,11 @@ print_status "Installing base dependencies..."
 if command -v apt-get &> /dev/null; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
-    apt-get install -y -qq curl openssl ca-certificates jq > /dev/null 2>&1
+    apt-get install -y -qq curl openssl ca-certificates jq file > /dev/null 2>&1
 elif command -v yum &> /dev/null; then
-    yum install -y -q curl openssl ca-certificates jq epel-release > /dev/null 2>&1
+    yum install -y -q curl openssl ca-certificates jq file epel-release > /dev/null 2>&1
 elif command -v dnf &> /dev/null; then
-    dnf install -y -q curl openssl ca-certificates jq > /dev/null 2>&1
+    dnf install -y -q curl openssl ca-certificates jq file > /dev/null 2>&1
 fi
 print_success "Base dependencies installed"
 

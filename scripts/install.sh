@@ -462,7 +462,7 @@ DB_DATABASE=${DB_NAME}
 DB_USERNAME=${DB_USER}
 DB_PASSWORD=${DB_PASSWORD}
 
-BROADCAST_CONNECTION=reverb
+BROADCAST_CONNECTION=log
 FILESYSTEM_DISK=local
 QUEUE_CONNECTION=redis
 SESSION_DRIVER=redis
@@ -486,11 +486,12 @@ EOF
             'name' => 'Admin',
             'email' => '${ADMIN_EMAIL}',
             'password' => bcrypt('${ADMIN_PASSWORD}'),
-            'email_verified_at' => now(),
+            'email_verified_at' => \Carbon\Carbon::now(),
         ]);
         \$team = \$user->ownedTeams()->create(['name' => 'Default Team', 'personal_team' => true]);
         \$user->current_team_id = \$team->id;
         \$user->save();
+        echo 'User created with ID: ' . \$user->id . ' and verified at: ' . \$user->email_verified_at;
     " >> "$LOG_FILE" 2>&1
 
     info "Optimizing application..."
