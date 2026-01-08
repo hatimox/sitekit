@@ -390,16 +390,33 @@ configure_database() {
     DB_NAME="sitekit"
     DB_USER="sitekit"
 
+    info "Creating database and user..."
+
     if [[ "$DATABASE" == "mysql" ]]; then
+        # Drop user if exists (to handle re-installs cleanly)
+        mysql -e "DROP USER IF EXISTS '${DB_USER}'@'localhost';" >> "$LOG_FILE" 2>&1 || true
         mysql -e "CREATE DATABASE IF NOT EXISTS ${DB_NAME} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" >> "$LOG_FILE" 2>&1
-        mysql -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';" >> "$LOG_FILE" 2>&1
+        mysql -e "CREATE USER '${DB_USER}'@'localhost' IDENTIFIED WITH mysql_native_password BY '${DB_PASSWORD}';" >> "$LOG_FILE" 2>&1
         mysql -e "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';" >> "$LOG_FILE" 2>&1
         mysql -e "FLUSH PRIVILEGES;" >> "$LOG_FILE" 2>&1
     else
+        # Drop user if exists (to handle re-installs cleanly)
+        mariadb -e "DROP USER IF EXISTS '${DB_USER}'@'localhost';" >> "$LOG_FILE" 2>&1 || true
         mariadb -e "CREATE DATABASE IF NOT EXISTS ${DB_NAME} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" >> "$LOG_FILE" 2>&1
-        mariadb -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';" >> "$LOG_FILE" 2>&1
+        mariadb -e "CREATE USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';" >> "$LOG_FILE" 2>&1
         mariadb -e "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';" >> "$LOG_FILE" 2>&1
         mariadb -e "FLUSH PRIVILEGES;" >> "$LOG_FILE" 2>&1
+    fi
+
+    # Verify database connection
+    if [[ "$DATABASE" == "mysql" ]]; then
+        if ! mysql -u"${DB_USER}" -p"${DB_PASSWORD}" -e "SELECT 1;" >> "$LOG_FILE" 2>&1; then
+            fatal "Failed to verify database connection. Check $LOG_FILE for details."
+        fi
+    else
+        if ! mariadb -u"${DB_USER}" -p"${DB_PASSWORD}" -e "SELECT 1;" >> "$LOG_FILE" 2>&1; then
+            fatal "Failed to verify database connection. Check $LOG_FILE for details."
+        fi
     fi
 
     success "Database configured"
