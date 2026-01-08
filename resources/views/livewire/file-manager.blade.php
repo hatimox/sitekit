@@ -56,7 +56,7 @@
                 <div class="flex-1"></div>
 
                 <x-filament::button
-                    wire:click="$set('showNewFileModal', true)"
+                    wire:click="openNewFileModal"
                     size="sm"
                     color="gray"
                     icon="heroicon-o-document-plus"
@@ -65,7 +65,7 @@
                 </x-filament::button>
 
                 <x-filament::button
-                    wire:click="$set('showNewFolderModal', true)"
+                    wire:click="openNewFolderModal"
                     size="sm"
                     color="gray"
                     icon="heroicon-o-folder-plus"
@@ -213,7 +213,8 @@
         id="file-editor"
         :close-by-clicking-away="false"
         width="5xl"
-        wire:model="showEditor"
+        :open="$showEditor"
+        wire:key="file-editor-modal"
     >
         <x-slot name="heading">
             <div class="flex items-center gap-2">
@@ -269,7 +270,8 @@
     <x-filament::modal
         id="new-folder"
         width="md"
-        wire:model="showNewFolderModal"
+        :open="$showNewFolderModal"
+        wire:key="new-folder-modal"
     >
         <x-slot name="heading">
             <div class="flex items-center gap-2">
@@ -297,7 +299,7 @@
 
         <x-slot name="footerActions">
             <x-filament::button
-                wire:click="$set('showNewFolderModal', false)"
+                wire:click="closeNewFolderModal"
                 color="gray"
             >
                 Cancel
@@ -316,7 +318,8 @@
     <x-filament::modal
         id="new-file"
         width="md"
-        wire:model="showNewFileModal"
+        :open="$showNewFileModal"
+        wire:key="new-file-modal"
     >
         <x-slot name="heading">
             <div class="flex items-center gap-2">
@@ -344,7 +347,7 @@
 
         <x-slot name="footerActions">
             <x-filament::button
-                wire:click="$set('showNewFileModal', false)"
+                wire:click="closeNewFileModal"
                 color="gray"
             >
                 Cancel
@@ -363,7 +366,8 @@
     <x-filament::modal
         id="delete-confirm"
         width="md"
-        wire:model="showDeleteModal"
+        :open="$showDeleteModal"
+        wire:key="delete-confirm-modal"
     >
         <x-slot name="heading">
             <div class="flex items-center gap-2 text-danger-600">
@@ -390,7 +394,7 @@
 
         <x-slot name="footerActions">
             <x-filament::button
-                wire:click="$set('showDeleteModal', false)"
+                wire:click="closeDeleteModal"
                 color="gray"
             >
                 Cancel

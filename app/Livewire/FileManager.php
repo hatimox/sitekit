@@ -584,6 +584,51 @@ class FileManager extends Component
     }
 
     /**
+     * Open new folder modal
+     */
+    public function openNewFolderModal(): void
+    {
+        $this->newFolderName = '';
+        $this->showNewFolderModal = true;
+    }
+
+    /**
+     * Close new folder modal
+     */
+    public function closeNewFolderModal(): void
+    {
+        $this->showNewFolderModal = false;
+        $this->newFolderName = '';
+    }
+
+    /**
+     * Open new file modal
+     */
+    public function openNewFileModal(): void
+    {
+        $this->newFileName = '';
+        $this->showNewFileModal = true;
+    }
+
+    /**
+     * Close new file modal
+     */
+    public function closeNewFileModal(): void
+    {
+        $this->showNewFileModal = false;
+        $this->newFileName = '';
+    }
+
+    /**
+     * Close delete modal
+     */
+    public function closeDeleteModal(): void
+    {
+        $this->showDeleteModal = false;
+        $this->filesToDelete = [];
+    }
+
+    /**
      * Refresh current directory
      */
     public function refresh(): void
