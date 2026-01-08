@@ -6,7 +6,6 @@ use App\Models\AgentJob;
 use App\Models\WebApp;
 use App\Services\FileManager\PathValidator;
 use Filament\Notifications\Notification;
-use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -86,17 +85,16 @@ class FileManager extends Component
         $job = AgentJob::create([
             'server_id' => $this->webApp->server_id,
             'team_id' => $this->webApp->team_id,
-            'type' => 'file_list',
+            'type' => 'list_directory',
             'payload' => [
-                'web_app_id' => $this->webApp->id,
                 'path' => $path,
-                'show_hidden' => false,
+                'base_path' => $this->webApp->root_path,
             ],
             'priority' => 2,
         ]);
 
         $this->activeJobId = $job->id;
-        $this->activeJobType = 'file_list';
+        $this->activeJobType = 'list_directory';
         $this->pollCount = 0;
     }
 
@@ -165,11 +163,11 @@ class FileManager extends Component
         $type = $this->activeJobType;
 
         match ($type) {
-            'file_list' => $this->handleFileListComplete($data),
-            'file_read' => $this->handleFileReadComplete($data),
-            'file_write' => $this->handleFileWriteComplete($data),
-            'file_delete' => $this->handleFileDeleteComplete(),
-            'file_mkdir' => $this->handleMkdirComplete(),
+            'list_directory' => $this->handleFileListComplete($data),
+            'read_file' => $this->handleFileReadComplete($data),
+            'write_file' => $this->handleFileWriteComplete($data),
+            'delete_file' => $this->handleFileDeleteComplete(),
+            'create_directory' => $this->handleMkdirComplete(),
             default => null,
         };
 
@@ -189,11 +187,11 @@ class FileManager extends Component
         $error = $data['error'] ?? 'An error occurred';
 
         match ($this->activeJobType) {
-            'file_list' => $this->errorMessage = "Failed to load directory: {$error}",
-            'file_read' => $this->handleFileReadFailed($error),
-            'file_write' => Notification::make()->title('Save Failed')->body($error)->danger()->send(),
-            'file_delete' => Notification::make()->title('Delete Failed')->body($error)->danger()->send(),
-            'file_mkdir' => Notification::make()->title('Create Folder Failed')->body($error)->danger()->send(),
+            'list_directory' => $this->errorMessage = "Failed to load directory: {$error}",
+            'read_file' => $this->handleFileReadFailed($error),
+            'write_file' => Notification::make()->title('Save Failed')->body($error)->danger()->send(),
+            'delete_file' => Notification::make()->title('Delete Failed')->body($error)->danger()->send(),
+            'create_directory' => Notification::make()->title('Create Folder Failed')->body($error)->danger()->send(),
             default => Notification::make()->title('Operation Failed')->body($error)->danger()->send(),
         };
 
@@ -206,8 +204,19 @@ class FileManager extends Component
      */
     protected function handleFileListComplete(array $data): void
     {
-        $output = json_decode($data['output'] ?? '{}', true);
-        $this->files = $output['files'] ?? [];
+        $output = json_decode($data['output'] ?? '[]', true);
+
+        // The agent returns a flat array of files, not nested under 'files' key
+        // Also convert is_directory to type for consistency with UI
+        $this->files = array_map(function ($file) {
+            return [
+                'name' => $file['name'],
+                'type' => ($file['is_directory'] ?? false) ? 'directory' : 'file',
+                'size' => $file['size'] ?? 0,
+                'mod_time' => $file['mod_time'] ?? null,
+                'permissions' => $file['permissions'] ?? null,
+            ];
+        }, is_array($output) ? $output : []);
 
         // Sort: directories first, then files, both alphabetically
         usort($this->files, function ($a, $b) {
@@ -259,8 +268,13 @@ class FileManager extends Component
      */
     protected function handleFileDeleteComplete(): void
     {
+        // If there are more files to delete, continue
+        if (!empty($this->filesToDelete)) {
+            $this->deleteFiles();
+            return;
+        }
+
         $this->showDeleteModal = false;
-        $this->filesToDelete = [];
         $this->selectedFiles = [];
         Notification::make()->title('Deleted')->body('Files have been deleted.')->success()->send();
         $this->loadDirectory();
@@ -370,16 +384,17 @@ class FileManager extends Component
         $job = AgentJob::create([
             'server_id' => $this->webApp->server_id,
             'team_id' => $this->webApp->team_id,
-            'type' => 'file_read',
+            'type' => 'read_file',
             'payload' => [
-                'web_app_id' => $this->webApp->id,
                 'path' => $filePath,
+                'base_path' => $this->webApp->root_path,
+                'max_bytes' => $this->pathValidator->getMaxEditableSize(),
             ],
             'priority' => 2,
         ]);
 
         $this->activeJobId = $job->id;
-        $this->activeJobType = 'file_read';
+        $this->activeJobType = 'read_file';
     }
 
     /**
@@ -401,18 +416,17 @@ class FileManager extends Component
         $job = AgentJob::create([
             'server_id' => $this->webApp->server_id,
             'team_id' => $this->webApp->team_id,
-            'type' => 'file_write',
+            'type' => 'write_file',
             'payload' => [
-                'web_app_id' => $this->webApp->id,
                 'path' => $this->editingFile,
+                'base_path' => $this->webApp->root_path,
                 'content' => $this->fileContent,
-                'backup' => true,
             ],
             'priority' => 2,
         ]);
 
         $this->activeJobId = $job->id;
-        $this->activeJobType = 'file_write';
+        $this->activeJobType = 'write_file';
     }
 
     /**
@@ -449,36 +463,34 @@ class FileManager extends Component
             return;
         }
 
-        $paths = array_map(
-            fn($file) => rtrim($this->currentPath, '/') . '/' . $file,
-            $this->filesToDelete
-        );
+        // Get the first file to delete (agent handles one at a time)
+        $filename = array_shift($this->filesToDelete);
+        $path = rtrim($this->currentPath, '/') . '/' . $filename;
 
-        // Validate all paths
-        foreach ($paths as $path) {
-            if (!$this->pathValidator->isAllowed($this->webApp, $path)) {
-                Notification::make()
-                    ->title('Access Denied')
-                    ->body('Cannot delete protected files.')
-                    ->danger()
-                    ->send();
-                return;
-            }
+        // Validate path
+        if (!$this->pathValidator->isAllowed($this->webApp, $path)) {
+            Notification::make()
+                ->title('Access Denied')
+                ->body('Cannot delete protected files.')
+                ->danger()
+                ->send();
+            return;
         }
 
         $job = AgentJob::create([
             'server_id' => $this->webApp->server_id,
             'team_id' => $this->webApp->team_id,
-            'type' => 'file_delete',
+            'type' => 'delete_file',
             'payload' => [
-                'web_app_id' => $this->webApp->id,
-                'paths' => $paths,
+                'path' => $path,
+                'base_path' => $this->webApp->root_path,
+                'recursive' => true,
             ],
             'priority' => 3,
         ]);
 
         $this->activeJobId = $job->id;
-        $this->activeJobType = 'file_delete';
+        $this->activeJobType = 'delete_file';
     }
 
     /**
@@ -504,16 +516,16 @@ class FileManager extends Component
         $job = AgentJob::create([
             'server_id' => $this->webApp->server_id,
             'team_id' => $this->webApp->team_id,
-            'type' => 'file_mkdir',
+            'type' => 'create_directory',
             'payload' => [
-                'web_app_id' => $this->webApp->id,
                 'path' => $path,
+                'base_path' => $this->webApp->root_path,
             ],
             'priority' => 3,
         ]);
 
         $this->activeJobId = $job->id;
-        $this->activeJobType = 'file_mkdir';
+        $this->activeJobType = 'create_directory';
     }
 
     /**
