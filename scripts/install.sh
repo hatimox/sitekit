@@ -139,7 +139,7 @@ check_existing_installation() {
     if [[ -d "$INSTALL_DIR" ]]; then
         warning "SiteKit directory already exists at $INSTALL_DIR"
         echo ""
-        read -p "Do you want to remove it and reinstall? [y/N]: " confirm
+        read -p "Do you want to remove it and reinstall? [y/N]: " confirm < /dev/tty
         if [[ "$confirm" =~ ^[Yy]$ ]]; then
             rm -rf "$INSTALL_DIR"
             success "Removed existing installation"
@@ -159,7 +159,7 @@ get_user_input() {
 
     # Domain
     while true; do
-        read -p "Domain name for SiteKit panel (e.g., panel.example.com): " DOMAIN
+        read -p "Domain name for SiteKit panel (e.g., panel.example.com): " DOMAIN < /dev/tty
         if [[ -n "$DOMAIN" && "$DOMAIN" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$ ]]; then
             break
         fi
@@ -172,7 +172,7 @@ get_user_input() {
     echo "  1) MySQL 8.0"
     echo "  2) MariaDB 10.11"
     while true; do
-        read -p "Enter choice [1-2]: " db_choice
+        read -p "Enter choice [1-2]: " db_choice < /dev/tty
         case $db_choice in
             1) DATABASE="mysql"; break;;
             2) DATABASE="mariadb"; break;;
@@ -183,7 +183,7 @@ get_user_input() {
     # Admin email
     echo ""
     while true; do
-        read -p "Admin email address: " ADMIN_EMAIL
+        read -p "Admin email address: " ADMIN_EMAIL < /dev/tty
         if [[ "$ADMIN_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
             break
         fi
@@ -193,10 +193,10 @@ get_user_input() {
     # Admin password
     echo ""
     while true; do
-        read -s -p "Admin password (min 8 characters): " ADMIN_PASSWORD
+        read -s -p "Admin password (min 8 characters): " ADMIN_PASSWORD < /dev/tty
         echo ""
         if [[ ${#ADMIN_PASSWORD} -ge 8 ]]; then
-            read -s -p "Confirm password: " ADMIN_PASSWORD_CONFIRM
+            read -s -p "Confirm password: " ADMIN_PASSWORD_CONFIRM < /dev/tty
             echo ""
             if [[ "$ADMIN_PASSWORD" == "$ADMIN_PASSWORD_CONFIRM" ]]; then
                 break
@@ -215,7 +215,7 @@ get_user_input() {
     echo "  Admin:     $ADMIN_EMAIL"
     echo "  Path:      $INSTALL_DIR"
     echo ""
-    read -p "Proceed with installation? [Y/n]: " confirm
+    read -p "Proceed with installation? [Y/n]: " confirm < /dev/tty
     if [[ "$confirm" =~ ^[Nn]$ ]]; then
         fatal "Installation cancelled by user"
     fi
