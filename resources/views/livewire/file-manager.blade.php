@@ -1,0 +1,349 @@
+<div>
+    <x-filament::section collapsible>
+        <x-slot name="heading">
+            <div class="flex items-center gap-2">
+                <x-heroicon-o-folder class="h-5 w-5" />
+                <span>File Manager</span>
+            </div>
+        </x-slot>
+        <x-slot name="description">
+            Browse, edit, and manage files in your web application.
+        </x-slot>
+
+        <div class="space-y-4">
+            {{-- Breadcrumb Navigation --}}
+            <div class="flex items-center gap-2 text-sm overflow-x-auto pb-2">
+                @foreach($breadcrumbs as $index => $crumb)
+                    @if($index > 0)
+                        <x-heroicon-o-chevron-right class="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    @endif
+                    @if($index === count($breadcrumbs) - 1)
+                        <span class="font-medium text-gray-900 dark:text-white flex-shrink-0">{{ $crumb['name'] }}</span>
+                    @else
+                        <button
+                            wire:click="navigateToPath('{{ $crumb['path'] }}')"
+                            class="text-primary-600 hover:text-primary-700 hover:underline flex-shrink-0"
+                        >
+                            {{ $crumb['name'] }}
+                        </button>
+                    @endif
+                @endforeach
+            </div>
+
+            {{-- Toolbar --}}
+            <div class="flex flex-wrap items-center gap-2">
+                <x-filament::button
+                    wire:click="navigateUp"
+                    size="sm"
+                    color="gray"
+                    icon="heroicon-o-arrow-up"
+                    :disabled="count($breadcrumbs) <= 1"
+                >
+                    Up
+                </x-filament::button>
+
+                <x-filament::button
+                    wire:click="refresh"
+                    size="sm"
+                    color="gray"
+                    icon="heroicon-o-arrow-path"
+                    wire:loading.attr="disabled"
+                >
+                    <span wire:loading.remove wire:target="refresh, loadDirectory">Refresh</span>
+                    <span wire:loading wire:target="refresh, loadDirectory">Loading...</span>
+                </x-filament::button>
+
+                <div class="flex-1"></div>
+
+                <x-filament::button
+                    wire:click="$set('showNewFolderModal', true)"
+                    size="sm"
+                    color="gray"
+                    icon="heroicon-o-folder-plus"
+                >
+                    New Folder
+                </x-filament::button>
+
+                @if(count($selectedFiles) > 0)
+                    <x-filament::button
+                        wire:click="confirmDelete({{ json_encode($selectedFiles) }})"
+                        size="sm"
+                        color="danger"
+                        icon="heroicon-o-trash"
+                    >
+                        Delete ({{ count($selectedFiles) }})
+                    </x-filament::button>
+
+                    <x-filament::button
+                        wire:click="clearSelection"
+                        size="sm"
+                        color="gray"
+                    >
+                        Clear
+                    </x-filament::button>
+                @endif
+            </div>
+
+            {{-- Error Message --}}
+            @if($errorMessage)
+                <div class="rounded-lg bg-danger-50 dark:bg-danger-900/20 p-4 text-danger-700 dark:text-danger-400">
+                    <div class="flex items-center gap-2">
+                        <x-heroicon-o-exclamation-circle class="h-5 w-5" />
+                        <span>{{ $errorMessage }}</span>
+                    </div>
+                </div>
+            @endif
+
+            {{-- File List --}}
+            <div class="border rounded-lg dark:border-gray-700 overflow-hidden">
+                @if($isLoading)
+                    <div class="p-8 text-center">
+                        <x-filament::loading-indicator class="h-8 w-8 mx-auto" />
+                        <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading files...</p>
+                    </div>
+                @else
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50 dark:bg-gray-800 text-left">
+                                <tr>
+                                    <th class="px-4 py-3 w-8">
+                                        <span class="sr-only">Select</span>
+                                    </th>
+                                    <th class="px-4 py-3">Name</th>
+                                    <th class="px-4 py-3 text-right w-24">Size</th>
+                                    <th class="px-4 py-3 text-right w-40">Modified</th>
+                                    <th class="px-4 py-3 text-right w-24">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                @forelse($files as $file)
+                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors {{ in_array($file['name'], $selectedFiles) ? 'bg-primary-50 dark:bg-primary-900/20' : '' }}">
+                                        <td class="px-4 py-2">
+                                            <input
+                                                type="checkbox"
+                                                wire:click="toggleFileSelection('{{ $file['name'] }}')"
+                                                @checked(in_array($file['name'], $selectedFiles))
+                                                class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                            />
+                                        </td>
+                                        <td class="px-4 py-2">
+                                            @if($file['type'] === 'directory')
+                                                <button
+                                                    wire:click="navigateTo('{{ $file['name'] }}')"
+                                                    class="flex items-center gap-2 text-primary-600 hover:text-primary-700 hover:underline"
+                                                >
+                                                    <x-dynamic-component :component="$this->getFileIcon($file)" class="h-5 w-5 text-yellow-500" />
+                                                    <span>{{ $file['name'] }}</span>
+                                                </button>
+                                            @else
+                                                <div class="flex items-center gap-2">
+                                                    <x-dynamic-component :component="$this->getFileIcon($file)" class="h-5 w-5 text-gray-400" />
+                                                    <span class="text-gray-900 dark:text-white">{{ $file['name'] }}</span>
+                                                </div>
+                                            @endif
+                                        </td>
+                                        <td class="px-4 py-2 text-right text-gray-500 dark:text-gray-400 tabular-nums">
+                                            {{ $this->formatFileSize($file['size'] ?? null) }}
+                                        </td>
+                                        <td class="px-4 py-2 text-right text-gray-500 dark:text-gray-400">
+                                            @if(isset($file['modified_at']))
+                                                {{ \Carbon\Carbon::parse($file['modified_at'])->diffForHumans() }}
+                                            @else
+                                                -
+                                            @endif
+                                        </td>
+                                        <td class="px-4 py-2 text-right">
+                                            <div class="flex items-center justify-end gap-1">
+                                                @if($file['type'] === 'file')
+                                                    <button
+                                                        wire:click="openFile('{{ $file['name'] }}', {{ $file['size'] ?? 0 }})"
+                                                        class="p-1.5 text-gray-500 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                                                        title="Edit"
+                                                    >
+                                                        <x-heroicon-o-pencil-square class="h-4 w-4" />
+                                                    </button>
+                                                @endif
+                                                <button
+                                                    wire:click="confirmDelete(['{{ $file['name'] }}'])"
+                                                    class="p-1.5 text-gray-500 hover:text-danger-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                                                    title="Delete"
+                                                >
+                                                    <x-heroicon-o-trash class="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="5" class="px-4 py-12 text-center text-gray-500 dark:text-gray-400">
+                                            <x-heroicon-o-folder-open class="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                            <p>This directory is empty.</p>
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </div>
+
+            {{-- File count --}}
+            @if(!$isLoading && count($files) > 0)
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ count($files) }} {{ Str::plural('item', count($files)) }}
+                </p>
+            @endif
+        </div>
+    </x-filament::section>
+
+    {{-- File Editor Modal --}}
+    <x-filament::modal
+        id="file-editor"
+        :close-by-clicking-away="false"
+        width="5xl"
+        wire:model="showEditor"
+    >
+        <x-slot name="heading">
+            <div class="flex items-center gap-2">
+                <x-heroicon-o-document-text class="h-5 w-5" />
+                <span>{{ $editingFileName ?? 'Edit File' }}</span>
+                @if($this->hasUnsavedChanges())
+                    <span class="text-xs bg-warning-100 text-warning-700 dark:bg-warning-900/50 dark:text-warning-400 px-2 py-0.5 rounded-full">
+                        Unsaved
+                    </span>
+                @endif
+            </div>
+        </x-slot>
+
+        <x-slot name="description">
+            {{ $editingFile }}
+        </x-slot>
+
+        @if($isEditorLoading)
+            <div class="py-12 text-center">
+                <x-filament::loading-indicator class="h-8 w-8 mx-auto" />
+                <p class="mt-2 text-sm text-gray-500">Loading file content...</p>
+            </div>
+        @else
+            <div class="space-y-4">
+                <textarea
+                    wire:model="fileContent"
+                    class="w-full h-96 font-mono text-sm bg-gray-900 text-gray-100 p-4 rounded-lg border-0 focus:ring-2 focus:ring-primary-500"
+                    spellcheck="false"
+                ></textarea>
+            </div>
+        @endif
+
+        <x-slot name="footerActions">
+            <x-filament::button
+                wire:click="closeEditor"
+                color="gray"
+            >
+                Cancel
+            </x-filament::button>
+
+            <x-filament::button
+                wire:click="saveFile"
+                :disabled="$isSaving || $isEditorLoading"
+                icon="heroicon-o-check"
+            >
+                <span wire:loading.remove wire:target="saveFile">Save Changes</span>
+                <span wire:loading wire:target="saveFile">Saving...</span>
+            </x-filament::button>
+        </x-slot>
+    </x-filament::modal>
+
+    {{-- New Folder Modal --}}
+    <x-filament::modal
+        id="new-folder"
+        width="md"
+        wire:model="showNewFolderModal"
+    >
+        <x-slot name="heading">
+            <div class="flex items-center gap-2">
+                <x-heroicon-o-folder-plus class="h-5 w-5" />
+                <span>Create New Folder</span>
+            </div>
+        </x-slot>
+
+        <div class="space-y-4">
+            <div>
+                <label for="newFolderName" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Folder Name
+                </label>
+                <input
+                    type="text"
+                    id="newFolderName"
+                    wire:model="newFolderName"
+                    wire:keydown.enter="createFolder"
+                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-primary-500 focus:ring-primary-500"
+                    placeholder="my-folder"
+                    autofocus
+                />
+            </div>
+        </div>
+
+        <x-slot name="footerActions">
+            <x-filament::button
+                wire:click="$set('showNewFolderModal', false)"
+                color="gray"
+            >
+                Cancel
+            </x-filament::button>
+
+            <x-filament::button
+                wire:click="createFolder"
+                icon="heroicon-o-folder-plus"
+            >
+                Create Folder
+            </x-filament::button>
+        </x-slot>
+    </x-filament::modal>
+
+    {{-- Delete Confirmation Modal --}}
+    <x-filament::modal
+        id="delete-confirm"
+        width="md"
+        wire:model="showDeleteModal"
+    >
+        <x-slot name="heading">
+            <div class="flex items-center gap-2 text-danger-600">
+                <x-heroicon-o-exclamation-triangle class="h-5 w-5" />
+                <span>Confirm Deletion</span>
+            </div>
+        </x-slot>
+
+        <div class="space-y-4">
+            <p class="text-gray-600 dark:text-gray-400">
+                Are you sure you want to delete the following {{ count($filesToDelete) }} {{ Str::plural('item', count($filesToDelete)) }}?
+                This action cannot be undone.
+            </p>
+
+            <ul class="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 space-y-1 max-h-48 overflow-y-auto">
+                @foreach($filesToDelete as $file)
+                    <li class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                        <x-heroicon-o-document class="h-4 w-4 text-gray-400" />
+                        {{ $file }}
+                    </li>
+                @endforeach
+            </ul>
+        </div>
+
+        <x-slot name="footerActions">
+            <x-filament::button
+                wire:click="$set('showDeleteModal', false)"
+                color="gray"
+            >
+                Cancel
+            </x-filament::button>
+
+            <x-filament::button
+                wire:click="deleteFiles"
+                color="danger"
+                icon="heroicon-o-trash"
+            >
+                Delete
+            </x-filament::button>
+        </x-slot>
+    </x-filament::modal>
+</div>

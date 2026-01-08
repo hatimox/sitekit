@@ -316,6 +316,10 @@ class AgentController extends Controller
             'provision_memcached', 'provision_composer', 'provision_node',
             'provision_supervisor' => $this->handleProvisioningStepCallback($job, $success, $result),
 
+            // File Manager operations
+            'file_list', 'file_read', 'file_write', 'file_delete',
+            'file_mkdir', 'file_rename', 'file_upload' => $this->handleFileOperationCallback($job, $type, $payload, $success, $result),
+
             default => null,
         };
     }
@@ -1142,6 +1146,120 @@ class AgentController extends Controller
                     $owner->notify(new \App\Notifications\ServerProvisioned($server));
                 }
             }
+        }
+    }
+
+    /**
+     * Handle file manager operation callbacks.
+     * These operations are used by the file manager UI for browsing, editing, and managing files.
+     */
+    protected function handleFileOperationCallback(
+        AgentJob $job,
+        string $type,
+        array $payload,
+        bool $success,
+        array $result
+    ): void {
+        $webAppId = $payload['web_app_id'] ?? null;
+        if (!$webAppId) {
+            return;
+        }
+
+        $webApp = WebApp::find($webAppId);
+        if (!$webApp) {
+            return;
+        }
+
+        // Log file operations for audit trail (only for write/delete operations)
+        if (in_array($type, ['file_write', 'file_delete', 'file_mkdir', 'file_rename', 'file_upload'])) {
+            $this->logFileOperation($webApp, $type, $payload, $success, $result);
+        }
+
+        // Handle specific operation types if needed
+        match ($type) {
+            'file_write' => $this->handleFileWriteComplete($webApp, $payload, $success, $result),
+            'file_delete' => $this->handleFileDeleteComplete($webApp, $payload, $success, $result),
+            'file_upload' => $this->handleFileUploadComplete($webApp, $payload, $success, $result),
+            default => null,
+        };
+    }
+
+    /**
+     * Log file operation for audit trail.
+     */
+    protected function logFileOperation(WebApp $webApp, string $type, array $payload, bool $success, array $result): void
+    {
+        $path = $payload['path'] ?? $payload['paths'] ?? 'unknown';
+
+        activity()
+            ->performedOn($webApp)
+            ->causedBy($webApp->team?->owner)
+            ->withProperties([
+                'action' => $type,
+                'path' => $path,
+                'success' => $success,
+                'error' => $result['error'] ?? null,
+            ])
+            ->log("File operation: {$type}");
+    }
+
+    /**
+     * Handle file write completion.
+     */
+    protected function handleFileWriteComplete(WebApp $webApp, array $payload, bool $success, array $result): void
+    {
+        if (!$success) {
+            // Notify user of write failure
+            $owner = $webApp->team?->owner;
+            if ($owner) {
+                \Filament\Notifications\Notification::make()
+                    ->title('File Save Failed')
+                    ->body("Failed to save file: " . basename($payload['path'] ?? 'unknown'))
+                    ->danger()
+                    ->sendToDatabase($owner);
+            }
+        }
+    }
+
+    /**
+     * Handle file delete completion.
+     */
+    protected function handleFileDeleteComplete(WebApp $webApp, array $payload, bool $success, array $result): void
+    {
+        if (!$success) {
+            $owner = $webApp->team?->owner;
+            if ($owner) {
+                \Filament\Notifications\Notification::make()
+                    ->title('File Delete Failed')
+                    ->body("Failed to delete file(s)")
+                    ->danger()
+                    ->sendToDatabase($owner);
+            }
+        }
+    }
+
+    /**
+     * Handle file upload completion.
+     */
+    protected function handleFileUploadComplete(WebApp $webApp, array $payload, bool $success, array $result): void
+    {
+        $owner = $webApp->team?->owner;
+        if (!$owner) {
+            return;
+        }
+
+        if ($success) {
+            \Filament\Notifications\Notification::make()
+                ->title('File Uploaded')
+                ->body("Successfully uploaded: " . basename($payload['filename'] ?? $payload['path'] ?? 'file'))
+                ->success()
+                ->sendToDatabase($owner);
+        } else {
+            \Filament\Notifications\Notification::make()
+                ->title('Upload Failed')
+                ->body("Failed to upload file: " . ($result['error'] ?? 'Unknown error'))
+                ->danger()
+                ->sendToDatabase($owner);
         }
     }
 }

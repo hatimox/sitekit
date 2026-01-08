@@ -22,15 +22,15 @@ return new class extends Migration
     {
         foreach ($this->tables as $table) {
             if (Schema::hasTable($table)) {
-                Schema::table($table, function (Blueprint $table) {
-                    if (!Schema::hasColumn($table->getTable(), 'last_error')) {
-                        $table->string('last_error')->nullable()->after('status');
+                Schema::table($table, function (Blueprint $blueprint) use ($table) {
+                    if (!Schema::hasColumn($table, 'last_error')) {
+                        $blueprint->string('last_error')->nullable();
                     }
-                    if (!Schema::hasColumn($table->getTable(), 'last_error_at')) {
-                        $table->timestamp('last_error_at')->nullable()->after('last_error');
+                    if (!Schema::hasColumn($table, 'last_error_at')) {
+                        $blueprint->timestamp('last_error_at')->nullable();
                     }
-                    if (!Schema::hasColumn($table->getTable(), 'suggested_action')) {
-                        $table->string('suggested_action')->nullable()->after('last_error_at');
+                    if (!Schema::hasColumn($table, 'suggested_action')) {
+                        $blueprint->string('suggested_action')->nullable();
                     }
                 });
             }
@@ -40,7 +40,7 @@ return new class extends Migration
         if (Schema::hasTable('servers')) {
             Schema::table('servers', function (Blueprint $table) {
                 if (!Schema::hasColumn('servers', 'database_health')) {
-                    $table->json('database_health')->nullable()->after('stats');
+                    $table->json('database_health')->nullable();
                 }
             });
         }
