@@ -22,6 +22,8 @@ class FileManager extends Component
     public bool $isLoading = true;
     public ?string $activeJobId = null;
     public ?string $activeJobType = null;
+    public int $pollCount = 0;
+    public const MAX_POLL_COUNT = 60; // Max 60 polls (30 seconds at 500ms interval)
 
     // Editor state
     public bool $showEditor = false;
@@ -95,6 +97,47 @@ class FileManager extends Component
 
         $this->activeJobId = $job->id;
         $this->activeJobType = 'file_list';
+        $this->pollCount = 0;
+    }
+
+    /**
+     * Poll for job status (fallback when broadcasting is disabled)
+     */
+    public function pollJobStatus(): void
+    {
+        if (!$this->activeJobId) {
+            return;
+        }
+
+        $this->pollCount++;
+
+        // Stop polling after max attempts
+        if ($this->pollCount > self::MAX_POLL_COUNT) {
+            $this->handleJobFailed(['error' => 'Job timed out']);
+            return;
+        }
+
+        $job = AgentJob::find($this->activeJobId);
+
+        if (!$job) {
+            $this->handleJobFailed(['error' => 'Job not found']);
+            return;
+        }
+
+        if ($job->status === 'completed') {
+            $this->handleJobCompleted([
+                'job_id' => $job->id,
+                'status' => 'completed',
+                'output' => $job->output,
+            ]);
+        } elseif ($job->status === 'failed') {
+            $this->handleJobFailed([
+                'job_id' => $job->id,
+                'status' => 'failed',
+                'error' => $job->error,
+            ]);
+        }
+        // If still pending/running, continue polling (Livewire wire:poll handles this)
     }
 
     /**

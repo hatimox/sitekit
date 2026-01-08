@@ -1,4 +1,4 @@
-<div>
+<div @if($activeJobId) wire:poll.500ms="pollJobStatus" @endif>
     <x-filament::section collapsible>
         <x-slot name="heading">
             <div class="flex items-center gap-2">
