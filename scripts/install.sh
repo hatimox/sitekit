@@ -87,6 +87,23 @@ step() {
 # =============================================================================
 # Pre-flight Checks
 # =============================================================================
+check_tty() {
+    if [[ ! -t 0 ]] && [[ ! -e /dev/tty ]]; then
+        echo ""
+        echo -e "${RED}[✗] Interactive terminal required${NC}"
+        echo ""
+        echo "This script requires user input. Please run it using one of these methods:"
+        echo ""
+        echo "  Method 1 (recommended):"
+        echo "    curl -sSL https://raw.githubusercontent.com/hatimox/sitekit/master/scripts/install.sh -o install.sh && bash install.sh"
+        echo ""
+        echo "  Method 2:"
+        echo "    wget -qO install.sh https://raw.githubusercontent.com/hatimox/sitekit/master/scripts/install.sh && bash install.sh"
+        echo ""
+        exit 1
+    fi
+}
+
 check_root() {
     if [[ $EUID -ne 0 ]]; then
         fatal "This script must be run as root. Use: sudo bash install.sh"
@@ -599,6 +616,7 @@ main() {
     echo ""
 
     step "Running pre-flight checks..."
+    check_tty
     check_root
     check_os
     check_memory
