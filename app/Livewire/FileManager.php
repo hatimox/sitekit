@@ -22,7 +22,7 @@ class FileManager extends Component
     public ?string $activeJobId = null;
     public ?string $activeJobType = null;
     public int $pollCount = 0;
-    public const MAX_POLL_COUNT = 60; // Max 60 polls (30 seconds at 500ms interval)
+    public const MAX_POLL_COUNT = 240; // Max 240 polls (120 seconds at 500ms interval)
 
     // Editor state
     public bool $showEditor = false;
@@ -40,6 +40,10 @@ class FileManager extends Component
     // New folder state
     public bool $showNewFolderModal = false;
     public string $newFolderName = '';
+
+    // New file state
+    public bool $showNewFileModal = false;
+    public string $newFileName = '';
 
     // Delete confirmation state
     public bool $showDeleteModal = false;
@@ -168,6 +172,7 @@ class FileManager extends Component
             'write_file' => $this->handleFileWriteComplete($data),
             'delete_file' => $this->handleFileDeleteComplete(),
             'create_directory' => $this->handleMkdirComplete(),
+            'create_file' => $this->handleCreateFileComplete(),
             default => null,
         };
 
@@ -192,6 +197,7 @@ class FileManager extends Component
             'write_file' => Notification::make()->title('Save Failed')->body($error)->danger()->send(),
             'delete_file' => Notification::make()->title('Delete Failed')->body($error)->danger()->send(),
             'create_directory' => Notification::make()->title('Create Folder Failed')->body($error)->danger()->send(),
+            'create_file' => Notification::make()->title('Create File Failed')->body($error)->danger()->send(),
             default => Notification::make()->title('Operation Failed')->body($error)->danger()->send(),
         };
 
@@ -288,6 +294,17 @@ class FileManager extends Component
         $this->showNewFolderModal = false;
         $this->newFolderName = '';
         Notification::make()->title('Folder Created')->success()->send();
+        $this->loadDirectory();
+    }
+
+    /**
+     * Handle create file completion
+     */
+    protected function handleCreateFileComplete(): void
+    {
+        $this->showNewFileModal = false;
+        $this->newFileName = '';
+        Notification::make()->title('File Created')->success()->send();
         $this->loadDirectory();
     }
 
@@ -526,6 +543,44 @@ class FileManager extends Component
 
         $this->activeJobId = $job->id;
         $this->activeJobType = 'create_directory';
+        $this->showNewFolderModal = false;
+    }
+
+    /**
+     * Create a new file
+     */
+    public function createFile(): void
+    {
+        if (empty(trim($this->newFileName))) {
+            return;
+        }
+
+        if (!$this->pathValidator->isValidFilename($this->newFileName)) {
+            Notification::make()
+                ->title('Invalid Name')
+                ->body('Please enter a valid file name.')
+                ->danger()
+                ->send();
+            return;
+        }
+
+        $path = rtrim($this->currentPath, '/') . '/' . $this->newFileName;
+
+        $job = AgentJob::create([
+            'server_id' => $this->webApp->server_id,
+            'team_id' => $this->webApp->team_id,
+            'type' => 'write_file',
+            'payload' => [
+                'path' => $path,
+                'base_path' => $this->webApp->root_path,
+                'content' => '',
+            ],
+            'priority' => 3,
+        ]);
+
+        $this->activeJobId = $job->id;
+        $this->activeJobType = 'create_file';
+        $this->showNewFileModal = false;
     }
 
     /**

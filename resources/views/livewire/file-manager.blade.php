@@ -1,4 +1,4 @@
-<div @if($activeJobId) wire:poll.500ms="pollJobStatus" @endif>
+<div wire:poll.500ms="pollJobStatus">
     <x-filament::section collapsible>
         <x-slot name="heading">
             <div class="flex items-center gap-2">
@@ -54,6 +54,15 @@
                 </x-filament::button>
 
                 <div class="flex-1"></div>
+
+                <x-filament::button
+                    wire:click="$set('showNewFileModal', true)"
+                    size="sm"
+                    color="gray"
+                    icon="heroicon-o-document-plus"
+                >
+                    New File
+                </x-filament::button>
 
                 <x-filament::button
                     wire:click="$set('showNewFolderModal', true)"
@@ -157,10 +166,13 @@
                                                 @if($file['type'] === 'file')
                                                     <button
                                                         wire:click="openFile('{{ $file['name'] }}', {{ $file['size'] ?? 0 }})"
-                                                        class="p-1.5 text-gray-500 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                                                        wire:loading.attr="disabled"
+                                                        wire:target="openFile('{{ $file['name'] }}', {{ $file['size'] ?? 0 }})"
+                                                        class="p-1.5 text-gray-500 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
                                                         title="Edit"
                                                     >
-                                                        <x-heroicon-o-pencil-square class="h-4 w-4" />
+                                                        <x-heroicon-o-pencil-square class="h-4 w-4" wire:loading.remove wire:target="openFile('{{ $file['name'] }}', {{ $file['size'] ?? 0 }})" />
+                                                        <x-filament::loading-indicator class="h-4 w-4" wire:loading wire:target="openFile('{{ $file['name'] }}', {{ $file['size'] ?? 0 }})" />
                                                     </button>
                                                 @endif
                                                 <button
@@ -296,6 +308,53 @@
                 icon="heroicon-o-folder-plus"
             >
                 Create Folder
+            </x-filament::button>
+        </x-slot>
+    </x-filament::modal>
+
+    {{-- New File Modal --}}
+    <x-filament::modal
+        id="new-file"
+        width="md"
+        wire:model="showNewFileModal"
+    >
+        <x-slot name="heading">
+            <div class="flex items-center gap-2">
+                <x-heroicon-o-document-plus class="h-5 w-5" />
+                <span>Create New File</span>
+            </div>
+        </x-slot>
+
+        <div class="space-y-4">
+            <div>
+                <label for="newFileName" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    File Name
+                </label>
+                <input
+                    type="text"
+                    id="newFileName"
+                    wire:model="newFileName"
+                    wire:keydown.enter="createFile"
+                    class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-primary-500 focus:ring-primary-500"
+                    placeholder="example.php"
+                    autofocus
+                />
+            </div>
+        </div>
+
+        <x-slot name="footerActions">
+            <x-filament::button
+                wire:click="$set('showNewFileModal', false)"
+                color="gray"
+            >
+                Cancel
+            </x-filament::button>
+
+            <x-filament::button
+                wire:click="createFile"
+                icon="heroicon-o-document-plus"
+            >
+                Create File
             </x-filament::button>
         </x-slot>
     </x-filament::modal>
