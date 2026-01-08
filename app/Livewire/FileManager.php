@@ -25,7 +25,6 @@ class FileManager extends Component
     public const MAX_POLL_COUNT = 240; // Max 240 polls (120 seconds at 500ms interval)
 
     // Editor state
-    public bool $showEditor = false;
     public ?string $editingFile = null;
     public ?string $editingFileName = null;
     public string $fileContent = '';
@@ -34,19 +33,15 @@ class FileManager extends Component
     public bool $isSaving = false;
 
     // Upload state
-    public bool $showUploadModal = false;
     public $uploadFiles = [];
 
     // New folder state
-    public bool $showNewFolderModal = false;
     public string $newFolderName = '';
 
     // New file state
-    public bool $showNewFileModal = false;
     public string $newFileName = '';
 
     // Delete confirmation state
-    public bool $showDeleteModal = false;
     public array $selectedFiles = [];
     public array $filesToDelete = [];
 
@@ -253,7 +248,7 @@ class FileManager extends Component
      */
     protected function handleFileReadFailed(string $error): void
     {
-        $this->showEditor = false;
+        $this->dispatch('close-modal', id: 'file-editor-modal');
         $this->editingFile = null;
         $this->editingFileName = null;
         Notification::make()->title('Failed to open file')->body($error)->danger()->send();
@@ -266,6 +261,7 @@ class FileManager extends Component
     {
         $this->isSaving = false;
         $this->originalContent = $this->fileContent;
+        $this->dispatch('close-modal', id: 'file-editor-modal');
         Notification::make()->title('File Saved')->body('Your changes have been saved.')->success()->send();
     }
 
@@ -280,7 +276,7 @@ class FileManager extends Component
             return;
         }
 
-        $this->showDeleteModal = false;
+        $this->dispatch('close-modal', id: 'delete-confirm-modal');
         $this->selectedFiles = [];
         Notification::make()->title('Deleted')->body('Files have been deleted.')->success()->send();
         $this->loadDirectory();
@@ -291,7 +287,7 @@ class FileManager extends Component
      */
     protected function handleMkdirComplete(): void
     {
-        $this->showNewFolderModal = false;
+        $this->dispatch('close-modal', id: 'new-folder-modal');
         $this->newFolderName = '';
         Notification::make()->title('Folder Created')->success()->send();
         $this->loadDirectory();
@@ -302,7 +298,7 @@ class FileManager extends Component
      */
     protected function handleCreateFileComplete(): void
     {
-        $this->showNewFileModal = false;
+        $this->dispatch('close-modal', id: 'new-file-modal');
         $this->newFileName = '';
         Notification::make()->title('File Created')->success()->send();
         $this->loadDirectory();
@@ -396,7 +392,9 @@ class FileManager extends Component
         $this->fileContent = '';
         $this->originalContent = '';
         $this->isEditorLoading = true;
-        $this->showEditor = true;
+
+        // Open the modal using Filament's dispatch
+        $this->dispatch('open-modal', id: 'file-editor-modal');
 
         $job = AgentJob::create([
             'server_id' => $this->webApp->server_id,
@@ -451,11 +449,7 @@ class FileManager extends Component
      */
     public function closeEditor(): void
     {
-        if ($this->fileContent !== $this->originalContent) {
-            // TODO: Add unsaved changes warning
-        }
-
-        $this->showEditor = false;
+        $this->dispatch('close-modal', id: 'file-editor-modal');
         $this->editingFile = null;
         $this->editingFileName = null;
         $this->fileContent = '';
@@ -468,7 +462,7 @@ class FileManager extends Component
     public function confirmDelete(array $files): void
     {
         $this->filesToDelete = $files;
-        $this->showDeleteModal = true;
+        $this->dispatch('open-modal', id: 'delete-confirm-modal');
     }
 
     /**
@@ -543,7 +537,6 @@ class FileManager extends Component
 
         $this->activeJobId = $job->id;
         $this->activeJobType = 'create_directory';
-        $this->showNewFolderModal = false;
     }
 
     /**
@@ -580,43 +573,6 @@ class FileManager extends Component
 
         $this->activeJobId = $job->id;
         $this->activeJobType = 'create_file';
-        $this->showNewFileModal = false;
-    }
-
-    /**
-     * Open new folder modal
-     */
-    public function openNewFolderModal(): void
-    {
-        $this->newFolderName = '';
-        $this->showNewFolderModal = true;
-    }
-
-    /**
-     * Close new folder modal
-     */
-    public function closeNewFolderModal(): void
-    {
-        $this->showNewFolderModal = false;
-        $this->newFolderName = '';
-    }
-
-    /**
-     * Open new file modal
-     */
-    public function openNewFileModal(): void
-    {
-        $this->newFileName = '';
-        $this->showNewFileModal = true;
-    }
-
-    /**
-     * Close new file modal
-     */
-    public function closeNewFileModal(): void
-    {
-        $this->showNewFileModal = false;
-        $this->newFileName = '';
     }
 
     /**
@@ -624,7 +580,6 @@ class FileManager extends Component
      */
     public function closeDeleteModal(): void
     {
-        $this->showDeleteModal = false;
         $this->filesToDelete = [];
     }
 

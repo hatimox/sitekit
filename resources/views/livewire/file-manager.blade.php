@@ -56,7 +56,7 @@
                 <div class="flex-1"></div>
 
                 <x-filament::button
-                    wire:click="openNewFileModal"
+                    x-on:click="$dispatch('open-modal', { id: 'new-file-modal' })"
                     size="sm"
                     color="gray"
                     icon="heroicon-o-document-plus"
@@ -65,7 +65,7 @@
                 </x-filament::button>
 
                 <x-filament::button
-                    wire:click="openNewFolderModal"
+                    x-on:click="$dispatch('open-modal', { id: 'new-folder-modal' })"
                     size="sm"
                     color="gray"
                     icon="heroicon-o-folder-plus"
@@ -75,7 +75,7 @@
 
                 @if(count($selectedFiles) > 0)
                     <x-filament::button
-                        wire:click="confirmDelete({{ json_encode($selectedFiles) }})"
+                        wire:click="confirmDelete({{ Js::from($selectedFiles) }})"
                         size="sm"
                         color="danger"
                         icon="heroicon-o-trash"
@@ -130,7 +130,7 @@
                                         <td class="px-4 py-2">
                                             <input
                                                 type="checkbox"
-                                                wire:click="toggleFileSelection('{{ $file['name'] }}')"
+                                                wire:click="toggleFileSelection({{ Js::from($file['name']) }})"
                                                 @checked(in_array($file['name'], $selectedFiles))
                                                 class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                                             />
@@ -138,7 +138,7 @@
                                         <td class="px-4 py-2">
                                             @if($file['type'] === 'directory')
                                                 <button
-                                                    wire:click="navigateTo('{{ $file['name'] }}')"
+                                                    wire:click="navigateTo({{ Js::from($file['name']) }})"
                                                     class="flex items-center gap-2 text-primary-600 hover:text-primary-700 hover:underline"
                                                 >
                                                     <x-dynamic-component :component="$this->getFileIcon($file)" class="h-5 w-5 text-yellow-500" />
@@ -165,18 +165,18 @@
                                             <div class="flex items-center justify-end gap-1">
                                                 @if($file['type'] === 'file')
                                                     <button
-                                                        wire:click="openFile('{{ $file['name'] }}', {{ $file['size'] ?? 0 }})"
+                                                        wire:click="openFile({{ Js::from($file['name']) }}, {{ $file['size'] ?? 0 }})"
                                                         wire:loading.attr="disabled"
-                                                        wire:target="openFile('{{ $file['name'] }}', {{ $file['size'] ?? 0 }})"
+                                                        wire:target="openFile"
                                                         class="p-1.5 text-gray-500 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
                                                         title="Edit"
                                                     >
-                                                        <x-heroicon-o-pencil-square class="h-4 w-4" wire:loading.remove wire:target="openFile('{{ $file['name'] }}', {{ $file['size'] ?? 0 }})" />
-                                                        <x-filament::loading-indicator class="h-4 w-4" wire:loading wire:target="openFile('{{ $file['name'] }}', {{ $file['size'] ?? 0 }})" />
+                                                        <x-heroicon-o-pencil-square class="h-4 w-4" wire:loading.remove wire:target="openFile" />
+                                                        <x-filament::loading-indicator class="h-4 w-4" wire:loading wire:target="openFile" />
                                                     </button>
                                                 @endif
                                                 <button
-                                                    wire:click="confirmDelete(['{{ $file['name'] }}'])"
+                                                    wire:click="confirmDelete([{{ Js::from($file['name']) }}])"
                                                     class="p-1.5 text-gray-500 hover:text-danger-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                                                     title="Delete"
                                                 >
@@ -210,11 +210,9 @@
 
     {{-- File Editor Modal --}}
     <x-filament::modal
-        id="file-editor"
+        id="file-editor-modal"
         :close-by-clicking-away="false"
         width="5xl"
-        :open="$showEditor"
-        wire:key="file-editor-modal"
     >
         <x-slot name="heading">
             <div class="flex items-center gap-2">
@@ -249,7 +247,7 @@
 
         <x-slot name="footerActions">
             <x-filament::button
-                wire:click="closeEditor"
+                x-on:click="$dispatch('close-modal', { id: 'file-editor-modal' })"
                 color="gray"
             >
                 Cancel
@@ -268,10 +266,8 @@
 
     {{-- New Folder Modal --}}
     <x-filament::modal
-        id="new-folder"
+        id="new-folder-modal"
         width="md"
-        :open="$showNewFolderModal"
-        wire:key="new-folder-modal"
     >
         <x-slot name="heading">
             <div class="flex items-center gap-2">
@@ -299,14 +295,14 @@
 
         <x-slot name="footerActions">
             <x-filament::button
-                wire:click="closeNewFolderModal"
+                x-on:click="$dispatch('close-modal', { id: 'new-folder-modal' })"
                 color="gray"
             >
                 Cancel
             </x-filament::button>
 
             <x-filament::button
-                wire:click="createFolder"
+                x-on:click="$wire.createFolder().then(() => $dispatch('close-modal', { id: 'new-folder-modal' }))"
                 icon="heroicon-o-folder-plus"
             >
                 Create Folder
@@ -316,10 +312,8 @@
 
     {{-- New File Modal --}}
     <x-filament::modal
-        id="new-file"
+        id="new-file-modal"
         width="md"
-        :open="$showNewFileModal"
-        wire:key="new-file-modal"
     >
         <x-slot name="heading">
             <div class="flex items-center gap-2">
@@ -347,14 +341,14 @@
 
         <x-slot name="footerActions">
             <x-filament::button
-                wire:click="closeNewFileModal"
+                x-on:click="$dispatch('close-modal', { id: 'new-file-modal' })"
                 color="gray"
             >
                 Cancel
             </x-filament::button>
 
             <x-filament::button
-                wire:click="createFile"
+                x-on:click="$wire.createFile().then(() => $dispatch('close-modal', { id: 'new-file-modal' }))"
                 icon="heroicon-o-document-plus"
             >
                 Create File
@@ -364,10 +358,8 @@
 
     {{-- Delete Confirmation Modal --}}
     <x-filament::modal
-        id="delete-confirm"
+        id="delete-confirm-modal"
         width="md"
-        :open="$showDeleteModal"
-        wire:key="delete-confirm-modal"
     >
         <x-slot name="heading">
             <div class="flex items-center gap-2 text-danger-600">
@@ -394,14 +386,14 @@
 
         <x-slot name="footerActions">
             <x-filament::button
-                wire:click="closeDeleteModal"
+                x-on:click="$dispatch('close-modal', { id: 'delete-confirm-modal' }); $wire.closeDeleteModal()"
                 color="gray"
             >
                 Cancel
             </x-filament::button>
 
             <x-filament::button
-                wire:click="deleteFiles"
+                x-on:click="$wire.deleteFiles().then(() => $dispatch('close-modal', { id: 'delete-confirm-modal' }))"
                 color="danger"
                 icon="heroicon-o-trash"
             >
