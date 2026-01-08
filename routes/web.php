@@ -18,7 +18,7 @@ use Laravel\Jetstream\Http\Controllers\TeamInvitationController;
 |
 */
 
-Route::get('/', fn () => view('welcome'));
+Route::redirect('/', '/app/login');
 
 // Public documentation routes
 Route::get('/docs/{topic?}', [\App\Http\Controllers\PublicDocsController::class, 'show'])
