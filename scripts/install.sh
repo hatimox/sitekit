@@ -18,7 +18,7 @@ SITEKIT_VERSION="master"
 SITEKIT_REPO="https://github.com/hatimox/sitekit.git"
 INSTALL_DIR="/opt/sitekit"
 LOG_FILE="/var/log/sitekit-install.log"
-PHP_VERSION="8.3"
+PHP_VERSION="8.4"
 
 # =============================================================================
 # Colors and Output Helpers
@@ -414,7 +414,7 @@ install_sitekit() {
     cd "$INSTALL_DIR"
 
     info "Installing PHP dependencies..."
-    composer install --no-dev --optimize-autoloader --no-interaction >> "$LOG_FILE" 2>&1
+    COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction >> "$LOG_FILE" 2>&1
 
     info "Installing Node.js dependencies..."
     npm ci >> "$LOG_FILE" 2>&1
