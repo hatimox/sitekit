@@ -186,12 +186,12 @@ class ServiceResource extends Resource
             ])
             ->defaultSort('type')
             ->groups([
-                Tables\Grouping\Group::make('category')
+                Tables\Grouping\Group::make('type')
                     ->label('Category')
                     ->getTitleFromRecordUsing(fn (Service $record) => $record->category)
                     ->collapsible(),
             ])
-            ->defaultGroup('category')
+            ->defaultGroup('type')
             ->filters([
                 Tables\Filters\SelectFilter::make('server_id')
                     ->relationship('server', 'name')
