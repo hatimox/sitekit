@@ -238,12 +238,13 @@
         @else
             <div
                 x-data="codeEditor({
-                    content: $wire.entangle('fileContent'),
-                    filename: {{ Js::from($editingFileName ?? '') }}
+                    content: @js($fileContent),
+                    filename: @js($editingFileName ?? '')
                 })"
                 x-on:editor-change.debounce.300ms="$wire.set('fileContent', $event.detail.content)"
                 x-on:editor-save="$wire.saveFile()"
                 class="h-[500px] rounded-lg overflow-hidden border border-gray-700"
+                wire:ignore
             >
                 <div x-ref="editor" class="h-full"></div>
             </div>

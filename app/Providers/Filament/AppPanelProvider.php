@@ -97,6 +97,10 @@ class AppPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::BODY_END,
                 fn () => view('components.unified-assistant')
+            )
+            ->renderHook(
+                PanelsRenderHook::SCRIPTS_AFTER,
+                fn () => app(\Illuminate\Foundation\Vite::class)('resources/js/app.js')
             );
 
         if (Features::hasApiFeatures()) {
