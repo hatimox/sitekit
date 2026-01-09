@@ -227,7 +227,7 @@
         </x-slot>
 
         <x-slot name="description">
-            {{ $editingFile }}
+            {{ $editingFile }} ({{ strlen($fileContent) }} bytes)
         </x-slot>
 
         @if($isEditorLoading)

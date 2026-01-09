@@ -121,6 +121,15 @@ class FileManager extends Component
             return;
         }
 
+        // Debug logging
+        \Illuminate\Support\Facades\Log::debug('Polling job status', [
+            'job_id' => $job->id,
+            'type' => $this->activeJobType,
+            'status' => $job->status,
+            'has_output' => !empty($job->output),
+            'output_length' => strlen($job->output ?? ''),
+        ]);
+
         if ($job->status === 'completed') {
             $this->handleJobCompleted([
                 'job_id' => $job->id,
