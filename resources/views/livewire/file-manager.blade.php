@@ -231,27 +231,37 @@
         </x-slot>
 
         @if($isEditorLoading)
-            <div class="py-12 text-center">
-                <x-filament::loading-indicator class="h-8 w-8 mx-auto" />
-                <p class="mt-2 text-sm text-gray-500">Loading file content...</p>
+            <div class="h-[500px] flex items-center justify-center bg-gray-900 rounded-lg border border-gray-700">
+                <div class="text-center">
+                    <x-filament::loading-indicator class="h-8 w-8 mx-auto" />
+                    <p class="mt-2 text-sm text-gray-500">Loading file content...</p>
+                </div>
             </div>
         @else
             <div
-                x-data="codeEditor({
-                    content: @js($fileContent),
-                    filename: @js($editingFileName ?? '')
-                })"
+                x-data
+                x-init="
+                    (async () => {
+                        await window.loadCodeEditor();
+                        const editor = window.codeEditor({
+                            content: @js($fileContent),
+                            filename: @js($editingFileName ?? '')
+                        });
+                        Object.assign($data, editor);
+                        editor.init.call($data);
+                    })()
+                "
                 x-on:editor-change.debounce.300ms="$wire.set('fileContent', $event.detail.content)"
                 x-on:editor-save="$wire.saveFile()"
                 class="h-[500px] rounded-lg overflow-hidden border border-gray-700"
-                wire:key="code-editor-{{ $editingFileName }}-{{ strlen($fileContent) }}"
+                wire:ignore
             >
                 <div x-ref="editor" class="h-full"></div>
             </div>
-            <p class="text-xs text-gray-500 mt-2">
-                Press <kbd class="px-1.5 py-0.5 bg-gray-700 rounded text-gray-300">Ctrl+S</kbd> / <kbd class="px-1.5 py-0.5 bg-gray-700 rounded text-gray-300">Cmd+S</kbd> to save
-            </p>
         @endif
+        <p class="text-xs text-gray-500 mt-2">
+            Press <kbd class="px-1.5 py-0.5 bg-gray-700 rounded text-gray-300">Ctrl+S</kbd> / <kbd class="px-1.5 py-0.5 bg-gray-700 rounded text-gray-300">Cmd+S</kbd> to save
+        </p>
 
         <x-slot name="footerActions">
             <x-filament::button
