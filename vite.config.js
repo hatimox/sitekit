@@ -16,4 +16,7 @@ export default defineConfig({
             ],
         }),
     ],
+    build: {
+        chunkSizeWarningLimit: 800, // CodeMirror is ~730kb, this is expected
+    },
 })

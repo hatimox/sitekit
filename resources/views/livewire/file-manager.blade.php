@@ -236,13 +236,20 @@
                 <p class="mt-2 text-sm text-gray-500">Loading file content...</p>
             </div>
         @else
-            <div class="space-y-4">
-                <textarea
-                    wire:model="fileContent"
-                    class="w-full h-96 font-mono text-sm bg-gray-900 text-gray-100 p-4 rounded-lg border-0 focus:ring-2 focus:ring-primary-500"
-                    spellcheck="false"
-                ></textarea>
+            <div
+                x-data="codeEditor({
+                    content: $wire.entangle('fileContent'),
+                    filename: {{ Js::from($editingFileName ?? '') }}
+                })"
+                x-on:editor-change.debounce.300ms="$wire.set('fileContent', $event.detail.content)"
+                x-on:editor-save="$wire.saveFile()"
+                class="h-[500px] rounded-lg overflow-hidden border border-gray-700"
+            >
+                <div x-ref="editor" class="h-full"></div>
             </div>
+            <p class="text-xs text-gray-500 mt-2">
+                Press <kbd class="px-1.5 py-0.5 bg-gray-700 rounded text-gray-300">Ctrl+S</kbd> / <kbd class="px-1.5 py-0.5 bg-gray-700 rounded text-gray-300">Cmd+S</kbd> to save
+            </p>
         @endif
 
         <x-slot name="footerActions">
