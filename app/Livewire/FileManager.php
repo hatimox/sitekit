@@ -238,7 +238,16 @@ class FileManager extends Component
      */
     protected function handleFileReadComplete(array $data): void
     {
-        $this->fileContent = $data['output'] ?? '';
+        $output = $data['output'] ?? '';
+
+        // Debug: Log the output length
+        \Illuminate\Support\Facades\Log::info('File read complete', [
+            'file' => $this->editingFile,
+            'output_length' => strlen($output),
+            'output_preview' => substr($output, 0, 100),
+        ]);
+
+        $this->fileContent = $output;
         $this->originalContent = $this->fileContent;
         $this->isEditorLoading = false;
     }
